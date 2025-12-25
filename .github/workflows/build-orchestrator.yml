@@ -10,3 +10,51 @@ on:
 jobs:
     build-test:
         uses: ./.github/workflows/build-test-orchestrator.yml
+        with:
+          make_release: ${{ startsWith(github.ref, 'refs/tags/') }}
+
+    create-release:
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        needs: build-test
+        runs-on: ubuntu-24.04
+
+        permissions:
+          contents: write
+
+        steps:
+          - name: Download built orchestrator artifact
+            uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+            with:
+              name: orchestrator-${{ github.sha }}
+              path: dist
+
+          - name: Create or update GitHub Release
+            env:
+              GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              REPO: ${{ github.repository }}
+              TAG: ${{ github.ref_name }}
+            run: |
+              set -euo pipefail
+
+              test -f dist/orchestrator
+
+              generated_notes=$(gh api -X POST "repos/$REPO/releases/generate-notes" \
+                -f tag_name="$TAG" \
+                -f target_commitish="$GITHUB_SHA" \
+                --jq .body)
+
+              cat > release_body.md <<EOF
+              ${generated_notes}
+
+              ## Orchestrator
+
+              - Linux binary: orchestrator
+              EOF
+
+              if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+                gh release edit "$TAG" --repo "$REPO" --title "$TAG" --notes-file release_body.md
+              else
+                gh release create "$TAG" --repo "$REPO" --title "$TAG" --notes-file release_body.md
+              fi
+
+              gh release upload "$TAG" --repo "$REPO" dist/orchestrator --clobber

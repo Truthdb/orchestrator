@@ -2,6 +2,12 @@ name: Build test orchestrator
 
 on:
   workflow_call:
+    inputs:
+      make_release:
+        description: 'Whether to upload a release artifact (orchestrator binary)'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   build-test:
@@ -31,3 +37,19 @@ jobs:
 
       - name: Run tests release
         run: cargo test --release --verbose
+
+      - name: Prepare release artifact
+        if: ${{ inputs.make_release }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          test -f target/release/orchestrator
+          cp target/release/orchestrator dist/orchestrator
+          chmod +x dist/orchestrator
+
+      - name: Upload artifact
+        if: ${{ inputs.make_release }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: orchestrator-${{ github.sha }}
+          path: dist/orchestrator
