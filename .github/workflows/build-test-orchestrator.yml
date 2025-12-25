@@ -13,6 +13,10 @@ jobs:
   build-test:
     runs-on: ubuntu-24.04
 
+    defaults:
+      run:
+        shell: bash
+
     permissions:
       contents: read
 
