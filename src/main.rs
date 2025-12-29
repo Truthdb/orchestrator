@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{error::ErrorKind, Command};
+use clap::{Command, error::ErrorKind};
 
 fn main() -> Result<()> {
     let cmd = Command::new("orchestrator")
@@ -18,7 +18,10 @@ fn main() -> Result<()> {
         Ok(_) => Ok(()),
         Err(err) => {
             err.print()?;
-            if matches!(err.kind(), ErrorKind::DisplayHelp | ErrorKind::DisplayVersion) {
+            if matches!(
+                err.kind(),
+                ErrorKind::DisplayHelp | ErrorKind::DisplayVersion
+            ) {
                 Ok(())
             } else {
                 std::process::exit(err.exit_code());
