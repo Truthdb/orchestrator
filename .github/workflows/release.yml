@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    uses: Truthdb/.github/.github/workflows/rust-release.yml@issue-17-workflows
+    uses: Truthdb/.github/.github/workflows/rust-release.yml@workflows-v1
     with:
       binary_name: orchestrator
       artifact_target_name: x86_64-linux-gnu
