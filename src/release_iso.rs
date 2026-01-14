@@ -1,6 +1,7 @@
 use crate::git::Repo;
 use crate::github::GitHub;
 use anyhow::{Context, Result, bail};
+use semver::Version;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -15,12 +16,32 @@ pub struct ReleaseIsoArgs {
     pub timeout: Duration,
 }
 
-fn normalize_tag(version: &str) -> String {
-    if version.starts_with('v') {
-        version.to_string()
-    } else {
-        format!("v{version}")
+fn parse_and_normalize_version(input: &str) -> Result<(String, String)> {
+    // Accept inputs like:
+    // - 1.2.3
+    // - v1.2.3
+    // - 1.2.3-rc.1
+    // - v1.2.3-rc.1
+    // - 1.2.3+build.5
+    // - v1.2.3+build.5
+    //
+    // Normalize everything to a tag `v{semver}` and a version string `{semver}`.
+    let without_v = input.strip_prefix('v').unwrap_or(input);
+
+    // Avoid confusing inputs like "vv1.2.3"; this almost always indicates a typo.
+    if input.starts_with('v') && without_v.starts_with('v') {
+        bail!("invalid version '{input}': remove extra leading 'v'. Example: v1.2.3");
     }
+
+    let parsed = Version::parse(without_v).with_context(|| {
+        format!(
+            "invalid version '{input}'. Expected SemVer like '1.2.3', 'v1.2.3', '1.2.3-rc.1', or 'v1.2.3-rc.1'"
+        )
+    })?;
+
+    let version = parsed.to_string();
+    let tag = format!("v{version}");
+    Ok((tag, version))
 }
 
 fn default_repos_root() -> Result<PathBuf> {
@@ -77,8 +98,7 @@ fn expected_assets(repo: &str, version_without_v: &str) -> Vec<String> {
 }
 
 pub fn run(args: ReleaseIsoArgs) -> Result<()> {
-    let tag = normalize_tag(&args.version);
-    let version_without_v = tag.trim_start_matches('v');
+    let (tag, version_without_v) = parse_and_normalize_version(&args.version)?;
 
     let repos_root = match args.repos_root {
         Some(p) => p,
@@ -190,7 +210,7 @@ pub fn run(args: ReleaseIsoArgs) -> Result<()> {
             repo.push_tag(&tag)?;
         }
 
-        let expected = expected_assets(&repo.name, version_without_v);
+        let expected = expected_assets(&repo.name, &version_without_v);
         if expected.is_empty() {
             continue;
         }

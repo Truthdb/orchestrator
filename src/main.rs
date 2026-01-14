@@ -22,7 +22,9 @@ enum Commands {
     /// This tags local repos and pushes tags to origin. It then polls GitHub Releases
     /// until required assets are present and stable before proceeding.
     ReleaseIso {
-        /// Version/tag to create (e.g. v1.2.3).
+        /// Version/tag to create (SemVer).
+        ///
+        /// Examples: v1.2.3, 1.2.3, v1.2.3-rc.1, 1.2.3-rc.1
         #[arg(long)]
         version: String,
 

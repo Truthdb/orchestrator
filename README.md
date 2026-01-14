@@ -23,6 +23,12 @@ Example:
 
 - `GITHUB_TOKEN=... ./orchestrator release-iso --version v1.2.3`
 
+Version format:
+
+- `--version` must be SemVer.
+- Accepted examples: `1.2.3`, `v1.2.3`, `1.2.3-rc.1`, `v1.2.3-rc.1`
+- The `v` prefix is optional; orchestrator will normalize tags to `v{semver}`.
+
 Resume example (if some tags/releases already exist):
 
 - `GITHUB_TOKEN=... ./orchestrator release-iso --version v1.2.3 --resume`
