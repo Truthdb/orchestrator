@@ -19,6 +19,43 @@ Requirements:
 - Git auth configured for pushing tags (SSH keys or HTTPS credentials).
 - `GITHUB_TOKEN` (or `GH_TOKEN`) set for polling GitHub Releases.
 
+Token setup (PAT):
+
+Orchestrator uses the token only to *read* GitHub Releases/Assets while it waits. Tag pushing still uses your normal `git` credentials.
+
+Option A: Fine-grained PAT (recommended)
+
+1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**.
+2. Create a new token:
+	- Resource owner: your account (or the org if allowed)
+	- Repository access: select the needed repos (`installer-kernel`, `installer`, `truthdb`, `installer-iso`)
+	- Permissions (minimum):
+		- **Metadata**: Read-only
+		- **Contents**: Read-only (covers Releases/Assets API access)
+3. Copy the token value (you won’t see it again).
+
+Option B: Classic PAT
+
+1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**.
+2. Create a token with scope:
+	- **repo** (required if the repos are private)
+	- If everything is public, **public_repo** is usually sufficient.
+3. Copy the token value.
+
+Set the token in your shell:
+
+- One-shot:
+	- `export GITHUB_TOKEN=...`
+	- `./orchestrator release-iso --version v1.2.3`
+
+- Inline for a single command:
+	- `GITHUB_TOKEN=... ./orchestrator release-iso --version v1.2.3`
+
+Notes:
+
+- Orchestrator also accepts `GH_TOKEN` (same value). If both are set, it prefers `GITHUB_TOKEN`.
+- Prefer tokens with an expiration date; rotate if leaked.
+
 Example:
 
 - `GITHUB_TOKEN=... ./orchestrator release-iso --version v1.2.3`
