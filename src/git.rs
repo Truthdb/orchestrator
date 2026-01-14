@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -79,7 +79,8 @@ impl Repo {
         self.fetch_origin()?;
 
         // Fail if detached.
-        let (code, branch, _) = run_git_status(&self.dir, &["symbolic-ref", "--quiet", "--short", "HEAD"])?;
+        let (code, branch, _) =
+            run_git_status(&self.dir, &["symbolic-ref", "--quiet", "--short", "HEAD"])?;
         if code != 0 || branch.is_empty() {
             bail!(
                 "{} is in detached HEAD state; check out a branch first.",
@@ -93,8 +94,16 @@ impl Repo {
             .with_context(|| format!("failed to resolve {remote_ref} in {}", self.dir.display()))?;
 
         if local_head != remote_head {
-            let counts = run_git(&self.dir, &["rev-list", "--left-right", "--count", &format!("HEAD...{remote_ref}")])
-                .unwrap_or_default();
+            let counts = run_git(
+                &self.dir,
+                &[
+                    "rev-list",
+                    "--left-right",
+                    "--count",
+                    &format!("HEAD...{remote_ref}"),
+                ],
+            )
+            .unwrap_or_default();
             bail!(
                 "{} is not synced with {}.\nlocal HEAD:  {}\nremote HEAD: {}\n(diverged counts: {})\n\nPlease `git pull` / fast-forward your branch before tagging.",
                 self.dir.display(),
@@ -135,7 +144,10 @@ impl Repo {
             &["ls-remote", "--exit-code", "--tags", "origin", &refname],
         )?;
         if code == 0 {
-            bail!("{} already has remote tag {tag} on origin", self.dir.display());
+            bail!(
+                "{} already has remote tag {tag} on origin",
+                self.dir.display()
+            );
         }
 
         // `git ls-remote --exit-code` uses exit code 2 to indicate "not found".
@@ -167,7 +179,8 @@ impl Repo {
 
     pub fn remote_tag_commit(&self, tag: &str) -> Result<Option<String>> {
         let refname = format!("refs/tags/{tag}^{{}}");
-        let (code, stdout, stderr) = run_git_status(&self.dir, &["ls-remote", "--tags", "origin", &refname])?;
+        let (code, stdout, stderr) =
+            run_git_status(&self.dir, &["ls-remote", "--tags", "origin", &refname])?;
 
         // Any non-zero here usually indicates a real error (network/auth).
         if code != 0 {

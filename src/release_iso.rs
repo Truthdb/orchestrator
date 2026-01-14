@@ -1,6 +1,6 @@
 use crate::git::Repo;
 use crate::github::GitHub;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -55,8 +55,14 @@ fn expected_assets(repo: &str, version_without_v: &str) -> Vec<String> {
     match repo {
         "installer-kernel" => vec!["BOOTX64.EFI".to_string()],
         "installer" => vec![
-            format!("truthdb-installer-v{}-x86_64-linux-musl.tar.gz", version_without_v),
-            format!("truthdb-installer-v{}-x86_64-linux-musl.sha256", version_without_v),
+            format!(
+                "truthdb-installer-v{}-x86_64-linux-musl.tar.gz",
+                version_without_v
+            ),
+            format!(
+                "truthdb-installer-v{}-x86_64-linux-musl.sha256",
+                version_without_v
+            ),
         ],
         "truthdb" => vec![
             format!("truthdb-v{}-x86_64-linux-gnu.tar.gz", version_without_v),
@@ -89,7 +95,8 @@ pub fn run(args: ReleaseIsoArgs) -> Result<()> {
     // Preflight: do all safety checks up-front before we mutate anything.
     // In --resume mode, we only require strict "A" checks on repos that are not
     // already tagged on origin.
-    let mut remote_tagged: std::collections::BTreeMap<String, bool> = std::collections::BTreeMap::new();
+    let mut remote_tagged: std::collections::BTreeMap<String, bool> =
+        std::collections::BTreeMap::new();
 
     for repo in &repos {
         if !repo.dir.is_dir() {
@@ -160,20 +167,27 @@ pub fn run(args: ReleaseIsoArgs) -> Result<()> {
 
         if args.dry_run {
             if already_remote_tagged {
-                eprintln!("[{0}] (dry-run) tag already on origin; would skip tagging", repo.name);
+                eprintln!(
+                    "[{0}] (dry-run) tag already on origin; would skip tagging",
+                    repo.name
+                );
             } else {
-                eprintln!("[{0}] (dry-run) would create annotated tag and push", repo.name);
+                eprintln!(
+                    "[{0}] (dry-run) would create annotated tag and push",
+                    repo.name
+                );
             }
+        } else if already_remote_tagged {
+            eprintln!(
+                "[{0}] tag already exists on origin; skipping create/push",
+                repo.name
+            );
         } else {
-            if already_remote_tagged {
-                eprintln!("[{0}] tag already exists on origin; skipping create/push", repo.name);
-            } else {
-                // Create tag if it doesn't already exist locally; in --resume mode it may.
-                if repo.local_tag_commit(&tag)?.is_none() {
-                    repo.create_annotated_tag(&tag)?;
-                }
-                repo.push_tag(&tag)?;
+            // Create tag if it doesn't already exist locally; in --resume mode it may.
+            if repo.local_tag_commit(&tag)?.is_none() {
+                repo.create_annotated_tag(&tag)?;
             }
+            repo.push_tag(&tag)?;
         }
 
         let expected = expected_assets(&repo.name, version_without_v);
@@ -182,11 +196,20 @@ pub fn run(args: ReleaseIsoArgs) -> Result<()> {
         }
 
         if args.dry_run {
-            eprintln!("[{0}] (dry-run) would wait for assets: {1:?}", repo.name, expected);
+            eprintln!(
+                "[{0}] (dry-run) would wait for assets: {1:?}",
+                repo.name, expected
+            );
         } else if let Some(ref gh) = gh {
             eprintln!("==> [{0}] waiting for release assets...", repo.name);
-            gh.wait_for_release_assets(&repo.name, &tag, &expected, args.poll_interval, args.timeout)
-                .with_context(|| format!("waiting for {} assets", repo.name))?;
+            gh.wait_for_release_assets(
+                &repo.name,
+                &tag,
+                &expected,
+                args.poll_interval,
+                args.timeout,
+            )
+            .with_context(|| format!("waiting for {} assets", repo.name))?;
         }
     }
 

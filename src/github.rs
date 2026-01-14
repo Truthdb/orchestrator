@@ -1,6 +1,6 @@
-use anyhow::{anyhow, bail, Context, Result};
-use reqwest::blocking::Client;
+use anyhow::{Context, Result, anyhow, bail};
 use reqwest::StatusCode;
+use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
@@ -68,7 +68,9 @@ impl GitHub {
             return Err(anyhow!("GitHub API error ({}): {}", status, body));
         }
 
-        let release = resp.json::<Release>().context("failed to parse GitHub release JSON")?;
+        let release = resp
+            .json::<Release>()
+            .context("failed to parse GitHub release JSON")?;
         Ok(Some(release))
     }
 
