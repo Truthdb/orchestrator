@@ -25,21 +25,23 @@ Orchestrator uses the token only to *read* GitHub Releases/Assets while it waits
 
 Option A: Fine-grained PAT (recommended)
 
+Fine-grained tokens are scoped to a **resource owner** (your user *or* an organization). If you only see personal repos, you likely created the token under your user instead of the org, or the org policy disallows fine-grained PATs.
+
 1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**.
 2. Create a new token:
-	- Resource owner: your account (or the org if allowed)
-	- Repository access: select the needed repos (`installer-kernel`, `installer`, `truthdb`, `installer-iso`)
-	- Permissions (minimum):
+	- **Resource owner**: select `Truthdb` (or the org that owns the repos)
+	- **Repository access**: select the needed repos (`installer-kernel`, `installer`, `truthdb`, `installer-iso`) *or* choose “All repositories” if you prefer
+	- **Permissions (minimum)**:
 		- **Metadata**: Read-only
 		- **Contents**: Read-only (covers Releases/Assets API access)
-3. Copy the token value (you won’t see it again).
+3. If your org uses SSO, GitHub may require you to **authorize** the token for that org after creation.
+4. Copy the token value (you won’t see it again).
 
 Option B: Classic PAT
 
 1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**.
-2. Create a token with scope:
-	- **repo** (required if the repos are private)
-	- If everything is public, **public_repo** is usually sufficient.
+2. For *public repos*, a token with **no scopes** is usually sufficient (it’s still authenticated, so it avoids the very low unauthenticated API rate limit).
+	- If you run into permission errors, add **public_repo**.
 3. Copy the token value.
 
 Set the token in your shell:
