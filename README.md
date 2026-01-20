@@ -1,5 +1,6 @@
 # orchestrator
-The command line tool to adminster the truthdb organisation
+
+Command-line tooling to administer the TruthDB organization.
 
 ## Commands
 
