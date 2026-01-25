@@ -1,5 +1,6 @@
 use crate::git::Repo;
 use crate::github::GitHub;
+use crate::reporter::DynReporter;
 use anyhow::{Context, Result, bail};
 use semver::Version;
 use std::path::{Path, PathBuf};
@@ -97,13 +98,26 @@ fn expected_assets(repo: &str, version_without_v: &str) -> Vec<String> {
     }
 }
 
-pub fn run(args: ReleaseIsoArgs) -> Result<()> {
+pub fn run(args: ReleaseIsoArgs, reporter: DynReporter) -> Result<()> {
     let (tag, version_without_v) = parse_and_normalize_version(&args.version)?;
+
+    reporter.step(
+        "Initialize".to_string(),
+        format!(
+            "version={} (tag={})\nmode={}{}",
+            version_without_v,
+            tag,
+            if args.dry_run { "dry-run" } else { "live" },
+            if args.resume { ", resume" } else { "" }
+        ),
+    );
 
     let repos_root = match args.repos_root {
         Some(p) => p,
         None => default_repos_root()?,
     };
+
+    reporter.update(format!("repos_root={}", repos_root.display()));
 
     let repos_in_order = ["installer-kernel", "installer", "truthdb", "installer-iso"];
 
@@ -119,15 +133,23 @@ pub fn run(args: ReleaseIsoArgs) -> Result<()> {
         std::collections::BTreeMap::new();
 
     for repo in &repos {
+        reporter.step(
+            format!("Preflight [{}]", repo.name),
+            format!("Checking repo at {}", repo.dir.display()),
+        );
+
         if !repo.dir.is_dir() {
             bail!("repo directory not found: {}", repo.dir.display());
         }
 
+        reporter.update("Verifying origin remote…".to_string());
         repo.ensure_origin_matches_expected()?;
 
         // Always fetch so remote tag and branch comparisons are reliable.
+        reporter.update("Fetching origin tags…".to_string());
         repo.fetch_origin()?;
 
+        reporter.update(format!("Checking remote tag {}…", tag));
         let is_remote_tagged = repo.remote_tag_commit(&tag)?.is_some();
         remote_tagged.insert(repo.name.clone(), is_remote_tagged);
 
@@ -143,7 +165,10 @@ pub fn run(args: ReleaseIsoArgs) -> Result<()> {
         }
 
         // Not yet tagged on origin: enforce strict "A" safety checks.
+        reporter.update("Ensuring worktree clean…".to_string());
         repo.ensure_worktree_clean()?;
+
+        reporter.update("Ensuring branch is synced with origin…".to_string());
         let _branch = repo.ensure_on_branch_and_synced_to_origin()?;
 
         // In resume mode, allow a pre-existing local tag only if it points at HEAD.
@@ -161,6 +186,7 @@ pub fn run(args: ReleaseIsoArgs) -> Result<()> {
                 }
             }
         } else {
+            reporter.update("Ensuring local/remote tag absent…".to_string());
             repo.ensure_tag_absent_local_and_remote(&tag)?;
         }
     }
@@ -183,30 +209,33 @@ pub fn run(args: ReleaseIsoArgs) -> Result<()> {
 
     for repo in &repos {
         let already_remote_tagged = *remote_tagged.get(&repo.name).unwrap_or(&false);
-        eprintln!("==> [{0}] tagging {1}", repo.name, tag);
+        reporter.step(format!("Tagging [{}]", repo.name), format!("tag={}", tag));
 
         if args.dry_run {
             if already_remote_tagged {
-                eprintln!(
-                    "[{0}] (dry-run) tag already on origin; would skip tagging",
+                reporter.update(format!(
+                    "[{}] (dry-run) tag already on origin; would skip tagging",
                     repo.name
-                );
+                ));
             } else {
-                eprintln!(
-                    "[{0}] (dry-run) would create annotated tag and push",
+                reporter.update(format!(
+                    "[{}] (dry-run) would create annotated tag and push",
                     repo.name
-                );
+                ));
             }
         } else if already_remote_tagged {
-            eprintln!(
-                "[{0}] tag already exists on origin; skipping create/push",
+            reporter.update(format!(
+                "[{}] tag already exists on origin; skipping create/push",
                 repo.name
-            );
+            ));
         } else {
             // Create tag if it doesn't already exist locally; in --resume mode it may.
             if repo.local_tag_commit(&tag)?.is_none() {
+                reporter.update("Creating annotated tag…".to_string());
                 repo.create_annotated_tag(&tag)?;
             }
+
+            reporter.update("Pushing tag to origin…".to_string());
             repo.push_tag(&tag)?;
         }
 
@@ -216,23 +245,31 @@ pub fn run(args: ReleaseIsoArgs) -> Result<()> {
         }
 
         if args.dry_run {
-            eprintln!(
-                "[{0}] (dry-run) would wait for assets: {1:?}",
+            reporter.update(format!(
+                "[{}] (dry-run) would wait for assets: {:?}",
                 repo.name, expected
-            );
+            ));
         } else if let Some(ref gh) = gh {
-            eprintln!("==> [{0}] waiting for release assets...", repo.name);
+            reporter.step(
+                format!("Waiting for assets [{}]", repo.name),
+                format!("expected={:?}", expected),
+            );
             gh.wait_for_release_assets(
                 &repo.name,
                 &tag,
                 &expected,
                 args.poll_interval,
                 args.timeout,
+                reporter.as_ref(),
             )
             .with_context(|| format!("waiting for {} assets", repo.name))?;
         }
     }
 
-    eprintln!("All done. installer-iso release should now produce the ISO for {tag}.");
+    reporter.step(
+        "Complete".to_string(),
+        format!("All done. installer-iso release should now produce the ISO for {tag}."),
+    );
+    reporter.ok("OK".to_string());
     Ok(())
 }

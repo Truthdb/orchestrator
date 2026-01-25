@@ -5,6 +5,8 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
+use crate::reporter::Reporter;
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReleaseAsset {
     pub name: String,
@@ -81,6 +83,7 @@ impl GitHub {
         expected_assets: &[String],
         poll_interval: Duration,
         timeout: Duration,
+        reporter: &dyn Reporter,
     ) -> Result<()> {
         let deadline = Instant::now() + timeout;
         let mut last_sizes: Option<BTreeMap<String, u64>> = None;
@@ -97,7 +100,7 @@ impl GitHub {
             }
 
             let Some(release) = self.get_release_by_tag(repo, tag)? else {
-                eprintln!("[{repo}] release {tag} not found yet; waiting...");
+                reporter.update(format!("[{repo}] release {tag} not found yet; waiting…"));
                 std::thread::sleep(poll_interval);
                 continue;
             };
@@ -116,11 +119,11 @@ impl GitHub {
             }
 
             if !missing.is_empty() {
-                eprintln!(
+                reporter.update(format!(
                     "[{repo}] waiting for assets (missing {}): {:?}",
                     missing.len(),
                     missing
-                );
+                ));
                 std::thread::sleep(poll_interval);
                 continue;
             }
@@ -134,11 +137,11 @@ impl GitHub {
             }
 
             if stable_count >= 1 {
-                eprintln!("[{repo}] assets ready for {tag}");
+                reporter.update(format!("[{repo}] assets ready for {tag}"));
                 return Ok(());
             }
 
-            eprintln!("[{repo}] assets present; verifying stability...");
+            reporter.update(format!("[{repo}] assets present; verifying stability…"));
             std::thread::sleep(poll_interval);
         }
     }
