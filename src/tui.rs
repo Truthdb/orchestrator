@@ -94,21 +94,21 @@ pub fn run(rx: Receiver<UiEvent>, auto_exit: bool) -> Result<()> {
             }
 
             // Keyboard input.
-            if event::poll(Duration::from_millis(10))? {
-                if let Event::Key(key) = event::read()? {
-                    if handle_key(&mut state, key) {
-                        break;
-                    }
-                }
+            if event::poll(Duration::from_millis(10))?
+                && let Event::Key(key) = event::read()?
+                && handle_key(&mut state, key)
+            {
+                break;
             }
 
             // If finished:
             // - On success: stay unless auto_exit is enabled.
             // - On error: always stay until user quits.
-            if let Some(ok) = state.finished {
-                if ok && auto_exit {
-                    break;
-                }
+            if let Some(ok) = state.finished
+                && ok
+                && auto_exit
+            {
+                break;
             }
 
             if last_draw.elapsed() >= tick {

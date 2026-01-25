@@ -209,10 +209,7 @@ pub fn run(args: ReleaseIsoArgs, reporter: DynReporter) -> Result<()> {
 
     for repo in &repos {
         let already_remote_tagged = *remote_tagged.get(&repo.name).unwrap_or(&false);
-        reporter.step(
-            format!("Tagging [{}]", repo.name),
-            format!("tag={}", tag),
-        );
+        reporter.step(format!("Tagging [{}]", repo.name), format!("tag={}", tag));
 
         if args.dry_run {
             if already_remote_tagged {
