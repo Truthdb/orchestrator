@@ -17,6 +17,7 @@ use ratatui::{
 };
 
 const TOP_PANE_HEIGHT: u16 = 7;
+const BOTTOM_PANE_MIN_HEIGHT: u16 = 7;
 
 fn base_text_style() -> Style {
     // A calm (slightly lighter) blue-gray for primary text.
@@ -243,28 +244,62 @@ fn ui(f: &mut ratatui::Frame, state: &AppState) {
     // Apply a consistent base style to the whole terminal area.
     f.render_widget(Block::default().style(base_text_style()), size);
 
-    let cols = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+    let help_needed = 2u16.saturating_add(HELP_TEXT.lines().count() as u16);
+    let repos_needed = 3u16.saturating_add(state.repos.len() as u16);
+    let middle_needed = help_needed.max(repos_needed);
+
+    let middle_max = size
+        .height
+        .saturating_sub(TOP_PANE_HEIGHT)
+        .saturating_sub(BOTTOM_PANE_MIN_HEIGHT);
+    let middle_height = middle_needed.min(middle_max).max(3);
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(TOP_PANE_HEIGHT),
+            Constraint::Length(middle_height),
+            Constraint::Min(0),
+        ])
         .split(size);
 
-    let left = cols[0];
-    let right = cols[1];
+    let top_cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+        .split(rows[0]);
 
-    let left_rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(TOP_PANE_HEIGHT), Constraint::Min(0)])
-        .split(left);
+    let mid_cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+        .split(rows[1]);
 
-    let right_rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(TOP_PANE_HEIGHT), Constraint::Min(0)])
-        .split(right);
+    let bottom_cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+        .split(rows[2]);
 
-    render_step(f, left_rows[0], state);
-    render_repos(f, left_rows[1], state);
-    render_status(f, right_rows[0], state);
-    render_help(f, right_rows[1], state);
+    render_step(f, top_cols[0], state);
+    render_status(f, top_cols[1], state);
+    render_repos(f, mid_cols[0], state);
+    render_help(f, mid_cols[1], state);
+    render_bottom_left(f, bottom_cols[0]);
+    render_bottom_right(f, bottom_cols[1]);
+}
+
+fn render_bottom_left(f: &mut ratatui::Frame, area: Rect) {
+    let block = base_block("Pane A");
+    let para = Paragraph::new("Reserved")
+        .block(block)
+        .wrap(Wrap { trim: true });
+    f.render_widget(para, area);
+}
+
+fn render_bottom_right(f: &mut ratatui::Frame, area: Rect) {
+    let block = base_block("Pane B");
+    let para = Paragraph::new("Reserved")
+        .block(block)
+        .wrap(Wrap { trim: true });
+    f.render_widget(para, area);
 }
 
 fn render_repos(f: &mut ratatui::Frame, area: Rect, state: &AppState) {
