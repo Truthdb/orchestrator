@@ -18,6 +18,32 @@ pub struct Release {
     pub assets: Vec<ReleaseAsset>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct RepoInfo {
+    pub default_branch: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WorkflowRunsResponse {
+    pub workflow_runs: Vec<WorkflowRun>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WorkflowRun {
+    pub status: String,
+    pub conclusion: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LatestRelease {
+    pub tag_name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CompareResponse {
+    pub ahead_by: u32,
+}
+
 #[derive(Clone)]
 pub struct GitHub {
     owner: String,
@@ -38,18 +64,22 @@ impl GitHub {
         })
     }
 
+    fn get(&self, url: String) -> reqwest::blocking::RequestBuilder {
+        let req = self.client.get(url);
+        if self.token.trim().is_empty() {
+            req
+        } else {
+            req.bearer_auth(&self.token)
+        }
+    }
+
     pub fn get_release_by_tag(&self, repo: &str, tag: &str) -> Result<Option<Release>> {
         let url = format!(
             "https://api.github.com/repos/{}/{}/releases/tags/{}",
             self.owner, repo, tag
         );
 
-        let resp = self
-            .client
-            .get(url)
-            .bearer_auth(&self.token)
-            .send()
-            .context("GitHub API request failed")?;
+        let resp = self.get(url).send().context("GitHub API request failed")?;
 
         if resp.status() == StatusCode::NOT_FOUND {
             return Ok(None);
@@ -74,6 +104,130 @@ impl GitHub {
             .json::<Release>()
             .context("failed to parse GitHub release JSON")?;
         Ok(Some(release))
+    }
+
+    pub fn get_default_branch(&self, repo: &str) -> Result<String> {
+        let url = format!("https://api.github.com/repos/{}/{repo}", self.owner);
+        let resp = self.get(url).send().context("GitHub API request failed")?;
+
+        if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
+            bail!(
+                "GitHub API auth failed (status {}). Set GITHUB_TOKEN/GH_TOKEN with access to {}/{}.",
+                resp.status(),
+                self.owner,
+                repo
+            );
+        }
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(anyhow!("GitHub API error ({}): {}", status, body));
+        }
+
+        let info = resp
+            .json::<RepoInfo>()
+            .context("failed to parse GitHub repo JSON")?;
+        Ok(info.default_branch)
+    }
+
+    pub fn get_latest_workflow_run(&self, repo: &str) -> Result<Option<WorkflowRun>> {
+        let url = format!(
+            "https://api.github.com/repos/{}/{repo}/actions/runs?per_page=1",
+            self.owner
+        );
+
+        let resp = self.get(url).send().context("GitHub API request failed")?;
+
+        if resp.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+
+        if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
+            bail!(
+                "GitHub API auth failed (status {}). Set GITHUB_TOKEN/GH_TOKEN with access to {}/{}.",
+                resp.status(),
+                self.owner,
+                repo
+            );
+        }
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(anyhow!("GitHub API error ({}): {}", status, body));
+        }
+
+        let data = resp
+            .json::<WorkflowRunsResponse>()
+            .context("failed to parse GitHub workflow runs JSON")?;
+        Ok(data.workflow_runs.into_iter().next())
+    }
+
+    pub fn get_latest_release_tag(&self, repo: &str) -> Result<Option<String>> {
+        let url = format!(
+            "https://api.github.com/repos/{}/{repo}/releases/latest",
+            self.owner
+        );
+
+        let resp = self.get(url).send().context("GitHub API request failed")?;
+
+        if resp.status() == StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+
+        if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
+            bail!(
+                "GitHub API auth failed (status {}). Set GITHUB_TOKEN/GH_TOKEN with access to {}/{}.",
+                resp.status(),
+                self.owner,
+                repo
+            );
+        }
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(anyhow!("GitHub API error ({}): {}", status, body));
+        }
+
+        let release = resp
+            .json::<LatestRelease>()
+            .context("failed to parse GitHub latest release JSON")?;
+        Ok(Some(release.tag_name))
+    }
+
+    pub fn compare_ahead_by(&self, repo: &str, base: &str, head: &str) -> Result<u32> {
+        let url = format!(
+            "https://api.github.com/repos/{}/{repo}/compare/{}...{}",
+            self.owner, base, head
+        );
+
+        let resp = self.get(url).send().context("GitHub API request failed")?;
+
+        if resp.status() == StatusCode::NOT_FOUND {
+            bail!("compare not available for {}/{}", self.owner, repo);
+        }
+
+        if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
+            bail!(
+                "GitHub API auth failed (status {}). Set GITHUB_TOKEN/GH_TOKEN with access to {}/{}.",
+                resp.status(),
+                self.owner,
+                repo
+            );
+        }
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(anyhow!("GitHub API error ({}): {}", status, body));
+        }
+
+        let cmp = resp
+            .json::<CompareResponse>()
+            .context("failed to parse GitHub compare JSON")?;
+        Ok(cmp.ahead_by)
     }
 
     pub fn wait_for_release_assets(

@@ -1,5 +1,6 @@
 mod git;
 mod github;
+mod monitor;
 mod release_iso;
 mod reporter;
 mod tui;
@@ -65,6 +66,19 @@ enum Commands {
         #[arg(long, default_value_t = 45 * 60)]
         timeout_secs: u64,
     },
+
+    /// Show a live organization monitor dashboard.
+    ///
+    /// This command does not perform any actions; it only displays status.
+    Monitor {
+        /// GitHub org/owner.
+        #[arg(long, default_value = "Truthdb")]
+        owner: String,
+
+        /// Poll interval in seconds.
+        #[arg(long, default_value_t = 60)]
+        poll_interval_secs: u64,
+    },
 }
 
 fn main() -> Result<()> {
@@ -81,13 +95,33 @@ fn main() -> Result<()> {
         );
         reporter.ok("OK".to_string());
 
+        let shutdown = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
         // Move the command into a worker thread so the UI can stay responsive.
         let command = cli.command;
         let worker = std::thread::spawn({
             let reporter = reporter.clone();
             let tx = tx.clone();
+            let shutdown = shutdown.clone();
             move || {
-                let result = run_command(command, reporter.clone());
+                let is_monitor = matches!(&command, Commands::Monitor { .. });
+
+                let result = match command {
+                    Commands::Monitor {
+                        owner,
+                        poll_interval_secs,
+                    } => monitor::run(
+                        monitor::MonitorArgs {
+                            owner,
+                            poll_interval: Duration::from_secs(poll_interval_secs),
+                        },
+                        tx.clone(),
+                        reporter.clone(),
+                        shutdown,
+                    ),
+                    other => run_command(other, reporter.clone()),
+                };
+
                 if let Err(ref e) = result {
                     reporter.step(
                         "Failed".to_string(),
@@ -95,13 +129,21 @@ fn main() -> Result<()> {
                     );
                     reporter.error(format!("{e:#}"));
                 }
-                let _ = tx.send(crate::tui::UiEvent::Finished { ok: result.is_ok() });
+
+                // Only signal Finished for non-monitor commands.
+                if !is_monitor {
+                    let _ = tx.send(crate::tui::UiEvent::Finished { ok: result.is_ok() });
+                }
+
                 result
             }
         });
 
         // Run the UI loop on the main thread.
         let ui_res = tui::run(rx, cli.auto_exit);
+
+        // Tell long-running workers (monitor) to stop.
+        shutdown.store(true, std::sync::atomic::Ordering::SeqCst);
 
         // Ensure worker has completed; if it errored, print a normal error after UI teardown.
         let worker_res = match worker.join() {
@@ -147,5 +189,11 @@ fn run_command(command: Commands, reporter: DynReporter) -> Result<()> {
             },
             reporter,
         ),
+
+        Commands::Monitor { .. } => {
+            // Monitor is a TUI-first command. If the user passed --no-tui, they likely
+            // want a one-shot printable report; we can add that later.
+            anyhow::bail!("monitor requires a TUI. Re-run without --no-tui");
+        }
     }
 }
