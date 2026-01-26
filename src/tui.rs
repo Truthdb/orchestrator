@@ -13,8 +13,45 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Text},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap},
 };
+
+const TOP_PANE_HEIGHT: u16 = 7;
+
+fn base_text_style() -> Style {
+    // A calm (slightly lighter) blue-gray for primary text.
+    Style::default().fg(Color::Rgb(185, 200, 212))
+}
+
+fn base_frame_style() -> Style {
+    // Slightly darker than text for frames/borders.
+    Style::default().fg(Color::Rgb(105, 120, 135))
+}
+
+fn base_block<T: Into<String>>(title: T) -> Block<'static> {
+    Block::default()
+        .title(title.into())
+        .borders(Borders::ALL)
+        .style(base_text_style())
+        .border_style(base_frame_style())
+}
+
+#[derive(Debug, Clone)]
+pub enum ActionState {
+    Success,
+    Failure,
+    Running,
+    Unknown,
+}
+
+#[derive(Debug, Clone)]
+pub struct RepoStatusRow {
+    pub name: String,
+    pub action: ActionState,
+    pub latest_release: Option<String>,
+    pub ahead_by: Option<u32>,
+    pub loading: bool,
+}
 
 #[derive(Debug, Clone)]
 pub enum UiEvent {
@@ -22,6 +59,7 @@ pub enum UiEvent {
     UpdateBody { body: String },
     SetOk { msg: String },
     SetError { msg: String },
+    SetRepos { rows: Vec<RepoStatusRow> },
     Finished { ok: bool },
 }
 
@@ -38,6 +76,7 @@ struct AppState {
     step_started_at: Instant,
     ok_msg: String,
     error_msg: Option<String>,
+    repos: Vec<RepoStatusRow>,
     help_scroll: u16,
     focus: Focus,
     finished: Option<bool>,
@@ -51,6 +90,7 @@ impl AppState {
             step_started_at: Instant::now(),
             ok_msg: "OK".to_string(),
             error_msg: None,
+            repos: Vec::new(),
             help_scroll: 0,
             focus: Focus::None,
             finished: None,
@@ -148,6 +188,9 @@ fn handle_ui_event(state: &mut AppState, ev: UiEvent) {
         UiEvent::SetError { msg } => {
             state.error_msg = Some(msg);
         }
+        UiEvent::SetRepos { rows } => {
+            state.repos = rows;
+        }
         UiEvent::Finished { ok } => {
             state.finished = Some(ok);
             if ok {
@@ -196,6 +239,10 @@ fn handle_key(state: &mut AppState, key: KeyEvent) -> bool {
 
 fn ui(f: &mut ratatui::Frame, state: &AppState) {
     let size = f.area();
+
+    // Apply a consistent base style to the whole terminal area.
+    f.render_widget(Block::default().style(base_text_style()), size);
+
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
@@ -204,14 +251,83 @@ fn ui(f: &mut ratatui::Frame, state: &AppState) {
     let left = cols[0];
     let right = cols[1];
 
+    let left_rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(TOP_PANE_HEIGHT), Constraint::Min(0)])
+        .split(left);
+
     let right_rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(7), Constraint::Min(0)])
+        .constraints([Constraint::Length(TOP_PANE_HEIGHT), Constraint::Min(0)])
         .split(right);
 
-    render_step(f, left, state);
+    render_step(f, left_rows[0], state);
+    render_repos(f, left_rows[1], state);
     render_status(f, right_rows[0], state);
     render_help(f, right_rows[1], state);
+}
+
+fn render_repos(f: &mut ratatui::Frame, area: Rect, state: &AppState) {
+    let block = base_block("Repos");
+
+    let header = Row::new([
+        Cell::from("Repo"),
+        Cell::from("CI"),
+        Cell::from("Latest Release"),
+        Cell::from("Ahead"),
+    ])
+    .style(Style::default().add_modifier(Modifier::BOLD));
+
+    let rows = state.repos.iter().map(|r| {
+        let (ci_text, ci_style, release, ahead_txt, ahead_style) = if r.loading {
+            (
+                spinner_frame().to_string(),
+                Style::default().fg(Color::DarkGray),
+                "…".to_string(),
+                "…".to_string(),
+                Style::default().fg(Color::DarkGray),
+            )
+        } else {
+            let (ci_text, ci_style) = match r.action {
+                ActionState::Success => ("OK".to_string(), Style::default().fg(Color::Green)),
+                ActionState::Failure => ("FAIL".to_string(), Style::default().fg(Color::Red)),
+                ActionState::Running => ("RUN".to_string(), Style::default().fg(Color::Yellow)),
+                ActionState::Unknown => ("-".to_string(), Style::default().fg(Color::DarkGray)),
+            };
+
+            let release = r.latest_release.clone().unwrap_or_else(|| "-".to_string());
+
+            let (ahead_txt, ahead_style) = match r.ahead_by {
+                Some(0) => ("0".to_string(), Style::default().fg(Color::Green)),
+                Some(n) => (format!("+{n}"), Style::default().fg(Color::Yellow)),
+                None => ("-".to_string(), Style::default().fg(Color::DarkGray)),
+            };
+
+            (ci_text, ci_style, release, ahead_txt, ahead_style)
+        };
+
+        Row::new([
+            Cell::from(r.name.clone()),
+            Cell::from(ci_text).style(ci_style.add_modifier(Modifier::BOLD)),
+            Cell::from(release),
+            Cell::from(ahead_txt).style(ahead_style),
+        ])
+    });
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(33),
+            Constraint::Length(6),
+            Constraint::Length(14),
+            Constraint::Length(8),
+        ],
+    )
+    .header(header)
+    .block(block)
+    .column_spacing(2);
+
+    f.render_widget(table, area);
 }
 
 fn spinner_frame() -> char {
@@ -233,7 +349,7 @@ fn render_step(f: &mut ratatui::Frame, area: Rect, state: &AppState) {
         elapsed.as_secs() % 60
     );
 
-    let block = Block::default().title(title).borders(Borders::ALL);
+    let block = base_block(title);
 
     let mut lines = Vec::new();
     lines.push(Line::styled(
@@ -267,7 +383,7 @@ fn render_status(f: &mut ratatui::Frame, area: Rect, state: &AppState) {
         ),
     };
 
-    let block = Block::default().title(title).borders(Borders::ALL);
+    let block = base_block(title);
     let para = Paragraph::new(body)
         .block(block)
         .style(style)
@@ -281,13 +397,10 @@ fn render_help(f: &mut ratatui::Frame, area: Rect, state: &AppState) {
     let border_style = if focused {
         Style::default().fg(Color::Yellow)
     } else {
-        Style::default()
+        base_frame_style()
     };
 
-    let block = Block::default()
-        .title(title)
-        .borders(Borders::ALL)
-        .border_style(border_style);
+    let block = base_block(title).border_style(border_style);
 
     let para = Paragraph::new(HELP_TEXT)
         .block(block)
