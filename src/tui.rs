@@ -104,12 +104,6 @@ const HELP_TEXT: &str = r#"Keys
   Tab          Focus help
   Up/Down      Scroll help
   PgUp/PgDn    Scroll help faster
-
-What you’re seeing
-  Current Step: shows what the orchestrator is doing right now.
-               This pane overwrites on each update (no scrolling spam).
-  Status:       green OK when healthy; red ERROR when something fails.
-    Completion:   stays open when done; press q to exit (or pass --auto-exit).
 "#;
 
 pub fn run(rx: Receiver<UiEvent>, auto_exit: bool) -> Result<()> {
