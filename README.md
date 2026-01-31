@@ -14,6 +14,9 @@ Requirements:
 
 - Local clones present under one directory:
 	- `truthdb/`
+	- `truthdb-cli/`
+	- `truthdb-net/`
+	- `truthdb-proto/`
 	- `installer/`
 	- `installer-kernel/`
 	- `installer-iso/`
@@ -31,7 +34,7 @@ Fine-grained tokens are scoped to a **resource owner** (your user *or* an organi
 1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**.
 2. Create a new token:
 	- **Resource owner**: select `Truthdb` (or the org that owns the repos)
-	- **Repository access**: select the needed repos (`installer-kernel`, `installer`, `truthdb`, `installer-iso`) *or* choose “All repositories” if you prefer
+	- **Repository access**: select the needed repos (`installer-kernel`, `installer`, `installer-iso`, `truthdb`, `truthdb-cli`, `truthdb-net`, `truthdb-proto`) *or* choose “All repositories” if you prefer
 	- **Permissions (minimum)**:
 		- **Metadata**: Read-only
 		- **Contents**: Read-only (covers Releases/Assets API access)
