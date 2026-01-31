@@ -21,7 +21,7 @@ pub struct MonitorArgs {
     pub poll_interval: Duration,
 }
 
-const REPOS: [&str; 12] = [
+const REPOS: [&str; 9] = [
     ".github",
     "docs",
     "installer",
@@ -30,9 +30,6 @@ const REPOS: [&str; 12] = [
     "installer-kernel-builder-image",
     "orchestrator",
     "truthdb",
-    "truthdb-cli",
-    "truthdb-net",
-    "truthdb-proto",
     "website",
 ];
 
