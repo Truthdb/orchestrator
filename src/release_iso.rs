@@ -68,9 +68,16 @@ fn default_repos_root() -> Result<PathBuf> {
 }
 
 fn looks_like_repos_root(dir: &Path) -> bool {
-    ["truthdb", "installer", "installer-kernel", "installer-iso"]
-        .iter()
-        .all(|name| dir.join(name).is_dir())
+    [
+        "truthdb",
+        "installer",
+        "installer-kernel",
+        "installer-iso",
+        "truthdb-net",
+        "truthdb-proto",
+    ]
+    .iter()
+    .all(|name| dir.join(name).is_dir())
 }
 
 fn expected_assets(repo: &str, version_without_v: &str) -> Vec<String> {
@@ -89,6 +96,24 @@ fn expected_assets(repo: &str, version_without_v: &str) -> Vec<String> {
         "truthdb" => vec![
             format!("truthdb-v{}-x86_64-linux-gnu.tar.gz", version_without_v),
             format!("truthdb-v{}-x86_64-linux-gnu.sha256", version_without_v),
+        ],
+        "truthdb-cli" => vec![
+            format!("truthdb-cli-v{}-x86_64-linux-gnu.tar.gz", version_without_v),
+            format!("truthdb-cli-v{}-x86_64-linux-gnu.sha256", version_without_v),
+        ],
+        "truthdb-net" => vec![
+            format!("truthdb-net-v{}-x86_64-linux-gnu.tar.gz", version_without_v),
+            format!("truthdb-net-v{}-x86_64-linux-gnu.sha256", version_without_v),
+        ],
+        "truthdb-proto" => vec![
+            format!(
+                "truthdb-proto-v{}-x86_64-linux-gnu.tar.gz",
+                version_without_v
+            ),
+            format!(
+                "truthdb-proto-v{}-x86_64-linux-gnu.sha256",
+                version_without_v
+            ),
         ],
         "installer-iso" => vec![
             format!("truthdb-installer-v{}.iso", version_without_v),
@@ -119,7 +144,15 @@ pub fn run(args: ReleaseIsoArgs, reporter: DynReporter) -> Result<()> {
 
     reporter.update(format!("repos_root={}", repos_root.display()));
 
-    let repos_in_order = ["installer-kernel", "installer", "truthdb", "installer-iso"];
+    let repos_in_order = [
+        "installer-kernel",
+        "installer",
+        "truthdb",
+        "truthdb-cli",
+        "truthdb-net",
+        "truthdb-proto",
+        "installer-iso",
+    ];
 
     let repos: Vec<Repo> = repos_in_order
         .iter()
