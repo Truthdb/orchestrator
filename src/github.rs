@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail};
-use reqwest::StatusCode;
 use reqwest::blocking::{Client, Response};
+use reqwest::{StatusCode, Url};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
@@ -175,13 +175,18 @@ impl GitHub {
         &self,
         repo: &str,
         workflow_file: &str,
+        branch: &str,
     ) -> Result<Option<WorkflowRun>> {
-        let url = format!(
-            "https://api.github.com/repos/{}/{repo}/actions/workflows/{}/runs?per_page=1",
+        let mut url = Url::parse(&format!(
+            "https://api.github.com/repos/{}/{repo}/actions/workflows/{}/runs",
             self.owner, workflow_file
-        );
+        ))
+        .context("failed to build GitHub workflow runs URL")?;
+        url.query_pairs_mut()
+            .append_pair("per_page", "1")
+            .append_pair("branch", branch);
 
-        let resp = self.send_get(&url)?;
+        let resp = self.send_get(url.as_str())?;
 
         if resp.status() == StatusCode::NOT_FOUND {
             return Ok(None);
