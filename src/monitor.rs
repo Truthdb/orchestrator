@@ -10,7 +10,10 @@ use anyhow::Result;
 use crossbeam_channel::Sender;
 
 use crate::{
-    github::{FALLBACK_GITHUB_TOKEN_ENV, GitHub, PRIMARY_GITHUB_TOKEN_ENV, github_token},
+    github::{
+        FALLBACK_GITHUB_TOKEN_ENV, GitHub, LEGACY_GITHUB_TOKEN_ENV, PRIMARY_GITHUB_TOKEN_ENV,
+        github_token,
+    },
     reporter::DynReporter,
     tui::{ActionState, RepoStatusRow, UiEvent},
 };
@@ -55,8 +58,8 @@ pub fn run(
 
     if !has_token {
         reporter.error(format!(
-            "Missing {} (or {}). Repo status will likely be rate-limited/unauthenticated.",
-            PRIMARY_GITHUB_TOKEN_ENV, FALLBACK_GITHUB_TOKEN_ENV
+            "Missing {}, {}, or {}. Repo status will likely be rate-limited/unauthenticated.",
+            PRIMARY_GITHUB_TOKEN_ENV, FALLBACK_GITHUB_TOKEN_ENV, LEGACY_GITHUB_TOKEN_ENV
         ));
     } else {
         reporter.ok("OK".to_string());
@@ -67,7 +70,7 @@ pub fn run(
     // Initial paint: list all repos immediately with a loading indicator, then fill them in.
     let mut rows = placeholder_rows();
     let _ = tx.send(UiEvent::SetRepos { rows: rows.clone() });
-    refresh_rows_incremental(&gh, &mut rows, &tx, true)?;
+    refresh_rows_incremental(&gh, &mut rows, &tx, reporter.as_ref(), true)?;
 
     while !shutdown.load(Ordering::SeqCst) {
         let mut slept = Duration::ZERO;
@@ -81,7 +84,7 @@ pub fn run(
             break;
         }
 
-        match refresh_rows_incremental(&gh, &mut rows, &tx, false) {
+        match refresh_rows_incremental(&gh, &mut rows, &tx, reporter.as_ref(), false) {
             Ok(()) => {
                 if has_token {
                     reporter.ok("OK".to_string());
@@ -113,6 +116,7 @@ fn refresh_rows_incremental(
     gh: &GitHub,
     rows: &mut [RepoStatusRow],
     tx: &Sender<UiEvent>,
+    reporter: &dyn crate::reporter::Reporter,
     show_loading: bool,
 ) -> Result<()> {
     if show_loading {
@@ -129,9 +133,15 @@ fn refresh_rows_incremental(
             row.loading = show_loading;
         }
 
-        let default_branch = gh
-            .get_default_branch(repo)
-            .unwrap_or_else(|_| "main".to_string());
+        let mut repo_errors = Vec::new();
+
+        let default_branch = match gh.get_default_branch(repo) {
+            Ok(branch) => branch,
+            Err(err) => {
+                repo_errors.push(format!("default branch: {err:#}"));
+                "main".to_string()
+            }
+        };
 
         let action = match gh.get_latest_workflow_run(repo) {
             Ok(Some(run)) => {
@@ -147,16 +157,30 @@ fn refresh_rows_incremental(
                     ActionState::Running
                 }
             }
-            Ok(None) | Err(_) => ActionState::Unknown,
+            Ok(None) => ActionState::Unknown,
+            Err(err) => {
+                repo_errors.push(format!("workflow runs: {err:#}"));
+                ActionState::Unknown
+            }
         };
 
         let release_tag = match gh.get_latest_release_tag(repo) {
             Ok(Some(tag)) => Some(tag),
-            Ok(None) | Err(_) => None,
+            Ok(None) => None,
+            Err(err) => {
+                repo_errors.push(format!("latest release: {err:#}"));
+                None
+            }
         };
 
         let ahead_by = match release_tag.as_deref() {
-            Some(tag) => gh.compare_ahead_by(repo, tag, &default_branch).ok(),
+            Some(tag) => match gh.compare_ahead_by(repo, tag, &default_branch) {
+                Ok(ahead_by) => Some(ahead_by),
+                Err(err) => {
+                    repo_errors.push(format!("ahead-by compare: {err:#}"));
+                    None
+                }
+            },
             None => None,
         };
 
@@ -171,6 +195,10 @@ fn refresh_rows_incremental(
         let _ = tx.send(UiEvent::SetRepos {
             rows: rows.to_vec(),
         });
+
+        if !repo_errors.is_empty() {
+            reporter.error(format!("[{}] {}", repo, repo_errors.join(" | ")));
+        }
     }
 
     Ok(())

@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail};
 use reqwest::StatusCode;
-use reqwest::blocking::Client;
+use reqwest::blocking::{Client, Response};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
@@ -9,10 +9,12 @@ use crate::reporter::Reporter;
 
 pub const PRIMARY_GITHUB_TOKEN_ENV: &str = "GITHUB_TRUTHDB_TOKEN";
 pub const FALLBACK_GITHUB_TOKEN_ENV: &str = "GH_TOKEN";
+pub const LEGACY_GITHUB_TOKEN_ENV: &str = "GITHUB_TOKEN";
 
 pub fn github_token() -> String {
     std::env::var(PRIMARY_GITHUB_TOKEN_ENV)
         .or_else(|_| std::env::var(FALLBACK_GITHUB_TOKEN_ENV))
+        .or_else(|_| std::env::var(LEGACY_GITHUB_TOKEN_ENV))
         .unwrap_or_default()
 }
 
@@ -82,13 +84,36 @@ impl GitHub {
         }
     }
 
+    fn send_get(&self, url: &str) -> Result<Response> {
+        let resp = self
+            .get(url.to_string())
+            .send()
+            .context("GitHub API request failed")?;
+
+        if !self.token.trim().is_empty()
+            && matches!(
+                resp.status(),
+                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
+            )
+        {
+            let retry = self
+                .client
+                .get(url)
+                .send()
+                .context("GitHub API request failed")?;
+            return Ok(retry);
+        }
+
+        Ok(resp)
+    }
+
     pub fn get_release_by_tag(&self, repo: &str, tag: &str) -> Result<Option<Release>> {
         let url = format!(
             "https://api.github.com/repos/{}/{}/releases/tags/{}",
             self.owner, repo, tag
         );
 
-        let resp = self.get(url).send().context("GitHub API request failed")?;
+        let resp = self.send_get(&url)?;
 
         if resp.status() == StatusCode::NOT_FOUND {
             return Ok(None);
@@ -96,10 +121,11 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set {}/{} with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {}, {}, or {} with access to {}/{}.",
                 resp.status(),
                 PRIMARY_GITHUB_TOKEN_ENV,
                 FALLBACK_GITHUB_TOKEN_ENV,
+                LEGACY_GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -119,14 +145,15 @@ impl GitHub {
 
     pub fn get_default_branch(&self, repo: &str) -> Result<String> {
         let url = format!("https://api.github.com/repos/{}/{repo}", self.owner);
-        let resp = self.get(url).send().context("GitHub API request failed")?;
+        let resp = self.send_get(&url)?;
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set {}/{} with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {}, {}, or {} with access to {}/{}.",
                 resp.status(),
                 PRIMARY_GITHUB_TOKEN_ENV,
                 FALLBACK_GITHUB_TOKEN_ENV,
+                LEGACY_GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -150,7 +177,7 @@ impl GitHub {
             self.owner
         );
 
-        let resp = self.get(url).send().context("GitHub API request failed")?;
+        let resp = self.send_get(&url)?;
 
         if resp.status() == StatusCode::NOT_FOUND {
             return Ok(None);
@@ -158,10 +185,11 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set {}/{} with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {}, {}, or {} with access to {}/{}.",
                 resp.status(),
                 PRIMARY_GITHUB_TOKEN_ENV,
                 FALLBACK_GITHUB_TOKEN_ENV,
+                LEGACY_GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -185,7 +213,7 @@ impl GitHub {
             self.owner
         );
 
-        let resp = self.get(url).send().context("GitHub API request failed")?;
+        let resp = self.send_get(&url)?;
 
         if resp.status() == StatusCode::NOT_FOUND {
             return Ok(None);
@@ -193,10 +221,11 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set {}/{} with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {}, {}, or {} with access to {}/{}.",
                 resp.status(),
                 PRIMARY_GITHUB_TOKEN_ENV,
                 FALLBACK_GITHUB_TOKEN_ENV,
+                LEGACY_GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -220,7 +249,7 @@ impl GitHub {
             self.owner, base, head
         );
 
-        let resp = self.get(url).send().context("GitHub API request failed")?;
+        let resp = self.send_get(&url)?;
 
         if resp.status() == StatusCode::NOT_FOUND {
             bail!("compare not available for {}/{}", self.owner, repo);
@@ -228,10 +257,11 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set {}/{} with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {}, {}, or {} with access to {}/{}.",
                 resp.status(),
                 PRIMARY_GITHUB_TOKEN_ENV,
                 FALLBACK_GITHUB_TOKEN_ENV,
+                LEGACY_GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );

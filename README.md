@@ -14,14 +14,11 @@ Requirements:
 
 - Local clones present under one directory:
 	- `truthdb/`
-	- `truthdb-cli/`
-	- `truthdb-net/`
-	- `truthdb-proto/`
 	- `installer/`
 	- `installer-kernel/`
 	- `installer-iso/`
 - Git auth configured for pushing tags (SSH keys or HTTPS credentials).
-- `GITHUB_TRUTHDB_TOKEN` (or `GH_TOKEN`) set for polling GitHub Releases.
+- `GITHUB_TRUTHDB_TOKEN` (or `GH_TOKEN`, or `GITHUB_TOKEN`) set for polling GitHub Releases.
 
 Token setup (PAT):
 
@@ -34,10 +31,11 @@ Fine-grained tokens are scoped to a **resource owner** (your user *or* an organi
 1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**.
 2. Create a new token:
 	- **Resource owner**: select `Truthdb` (or the org that owns the repos)
-	- **Repository access**: select the needed repos (`installer-kernel`, `installer`, `installer-iso`, `truthdb`, `truthdb-cli`, `truthdb-net`, `truthdb-proto`) *or* choose “All repositories” if you prefer
+	- **Repository access**: select the needed repos (`installer-kernel`, `installer`, `installer-iso`, `truthdb`, `orchestrator`, `website`, `docs`, `.github`) *or* choose “All repositories” if you prefer
 	- **Permissions (minimum)**:
 		- **Metadata**: Read-only
 		- **Contents**: Read-only (covers Releases/Assets API access)
+		- **Actions**: Read-only (needed by `monitor` to read workflow run status)
 3. If your org uses SSO, GitHub may require you to **authorize** the token for that org after creation.
 4. Copy the token value (you won’t see it again).
 
@@ -59,8 +57,9 @@ Set the token in your shell:
 
 Notes:
 
-- Orchestrator also accepts `GH_TOKEN` (same value). If both are set, it prefers `GITHUB_TRUTHDB_TOKEN`.
+- Orchestrator also accepts `GH_TOKEN` and `GITHUB_TOKEN` (same value). If multiple are set, it prefers `GITHUB_TRUTHDB_TOKEN`, then `GH_TOKEN`, then `GITHUB_TOKEN`.
 - Prefer tokens with an expiration date; rotate if leaked.
+- If `monitor` shows only unknown/blank rows, verify the token value itself is valid. A malformed token can make GitHub return auth failures for every repo.
 
 Example:
 
