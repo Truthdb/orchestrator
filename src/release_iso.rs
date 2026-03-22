@@ -1,7 +1,5 @@
 use crate::git::Repo;
-use crate::github::{
-    FALLBACK_GITHUB_TOKEN_ENV, GitHub, PRIMARY_GITHUB_TOKEN_ENV, github_token,
-};
+use crate::github::{FALLBACK_GITHUB_TOKEN_ENV, GitHub, PRIMARY_GITHUB_TOKEN_ENV, github_token};
 use crate::reporter::DynReporter;
 use anyhow::{Context, Result, bail};
 use semver::Version;

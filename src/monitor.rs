@@ -54,12 +54,10 @@ pub fn run(
     let has_token = !token.is_empty();
 
     if !has_token {
-        reporter.error(
-            format!(
-                "Missing {} (or {}). Repo status will likely be rate-limited/unauthenticated.",
-                PRIMARY_GITHUB_TOKEN_ENV, FALLBACK_GITHUB_TOKEN_ENV
-            ),
-        );
+        reporter.error(format!(
+            "Missing {} (or {}). Repo status will likely be rate-limited/unauthenticated.",
+            PRIMARY_GITHUB_TOKEN_ENV, FALLBACK_GITHUB_TOKEN_ENV
+        ));
     } else {
         reporter.ok("OK".to_string());
     }
