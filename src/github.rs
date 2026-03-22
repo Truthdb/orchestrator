@@ -171,10 +171,14 @@ impl GitHub {
         Ok(info.default_branch)
     }
 
-    pub fn get_latest_workflow_run(&self, repo: &str) -> Result<Option<WorkflowRun>> {
+    pub fn get_latest_workflow_run(
+        &self,
+        repo: &str,
+        workflow_file: &str,
+    ) -> Result<Option<WorkflowRun>> {
         let url = format!(
-            "https://api.github.com/repos/{}/{repo}/actions/runs?per_page=1",
-            self.owner
+            "https://api.github.com/repos/{}/{repo}/actions/workflows/{}/runs?per_page=1",
+            self.owner, workflow_file
         );
 
         let resp = self.send_get(&url)?;
