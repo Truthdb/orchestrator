@@ -78,7 +78,7 @@ fn looks_like_repos_root(dir: &Path) -> bool {
 
 fn expected_assets(repo: &str, version_without_v: &str) -> Vec<String> {
     match repo {
-        "installer-kernel" => vec!["BOOTX64.EFI".to_string()],
+        "installer-kernel" => vec!["BOOTX64.EFI".to_string(), "BOOTX64.EFI.sha256".to_string()],
         "installer" => vec![
             format!(
                 "truthdb-installer-v{}-x86_64-linux-musl.tar.gz",

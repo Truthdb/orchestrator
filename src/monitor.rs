@@ -145,7 +145,7 @@ fn refresh_rows_incremental(
             }
         };
 
-        let action = match gh.get_latest_workflow_run(repo, CI_WORKFLOW_FILE) {
+        let action = match gh.get_latest_workflow_run(repo, CI_WORKFLOW_FILE, &default_branch) {
             Ok(Some(run)) => {
                 if run.status == "completed" {
                     match run.conclusion.as_deref() {

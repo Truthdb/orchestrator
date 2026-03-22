@@ -94,7 +94,7 @@ Shows a live TUI dashboard for the TruthDB organization.
 
 Current behavior:
 
-- Reads the latest `ci.yml` workflow run status for each repo
+- Reads the latest `ci.yml` workflow run status for each repo's default branch
 - Shows the latest release tag for each repo
 - Shows how far the default branch is ahead of the latest release tag
 
