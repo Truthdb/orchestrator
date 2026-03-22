@@ -21,7 +21,7 @@ Requirements:
 	- `installer-kernel/`
 	- `installer-iso/`
 - Git auth configured for pushing tags (SSH keys or HTTPS credentials).
-- `GITHUB_TOKEN` (or `GH_TOKEN`) set for polling GitHub Releases.
+- `GITHUB_TRUTHDB_TOKEN` (or `GH_TOKEN`) set for polling GitHub Releases.
 
 Token setup (PAT):
 
@@ -51,20 +51,20 @@ Option B: Classic PAT
 Set the token in your shell:
 
 - One-shot:
-	- `export GITHUB_TOKEN=...`
+	- `export GITHUB_TRUTHDB_TOKEN=...`
 	- `./orchestrator release-iso --version v1.2.3`
 
 - Inline for a single command:
-	- `GITHUB_TOKEN=... ./orchestrator release-iso --version v1.2.3`
+	- `GITHUB_TRUTHDB_TOKEN=... ./orchestrator release-iso --version v1.2.3`
 
 Notes:
 
-- Orchestrator also accepts `GH_TOKEN` (same value). If both are set, it prefers `GITHUB_TOKEN`.
+- Orchestrator also accepts `GH_TOKEN` (same value). If both are set, it prefers `GITHUB_TRUTHDB_TOKEN`.
 - Prefer tokens with an expiration date; rotate if leaked.
 
 Example:
 
-- `GITHUB_TOKEN=... ./orchestrator release-iso --version v1.2.3`
+- `GITHUB_TRUTHDB_TOKEN=... ./orchestrator release-iso --version v1.2.3`
 
 Version format:
 
@@ -74,7 +74,7 @@ Version format:
 
 Resume example (if some tags/releases already exist):
 
-- `GITHUB_TOKEN=... ./orchestrator release-iso --version v1.2.3 --resume`
+- `GITHUB_TRUTHDB_TOKEN=... ./orchestrator release-iso --version v1.2.3 --resume`
 
 Notes:
 

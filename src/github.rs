@@ -7,6 +7,15 @@ use std::time::{Duration, Instant};
 
 use crate::reporter::Reporter;
 
+pub const PRIMARY_GITHUB_TOKEN_ENV: &str = "GITHUB_TRUTHDB_TOKEN";
+pub const FALLBACK_GITHUB_TOKEN_ENV: &str = "GH_TOKEN";
+
+pub fn github_token() -> String {
+    std::env::var(PRIMARY_GITHUB_TOKEN_ENV)
+        .or_else(|_| std::env::var(FALLBACK_GITHUB_TOKEN_ENV))
+        .unwrap_or_default()
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReleaseAsset {
     pub name: String,
@@ -87,8 +96,10 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set GITHUB_TOKEN/GH_TOKEN with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {}/{} with access to {}/{}.",
                 resp.status(),
+                PRIMARY_GITHUB_TOKEN_ENV,
+                FALLBACK_GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -112,8 +123,10 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set GITHUB_TOKEN/GH_TOKEN with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {}/{} with access to {}/{}.",
                 resp.status(),
+                PRIMARY_GITHUB_TOKEN_ENV,
+                FALLBACK_GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -145,8 +158,10 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set GITHUB_TOKEN/GH_TOKEN with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {}/{} with access to {}/{}.",
                 resp.status(),
+                PRIMARY_GITHUB_TOKEN_ENV,
+                FALLBACK_GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -178,8 +193,10 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set GITHUB_TOKEN/GH_TOKEN with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {}/{} with access to {}/{}.",
                 resp.status(),
+                PRIMARY_GITHUB_TOKEN_ENV,
+                FALLBACK_GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -211,8 +228,10 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set GITHUB_TOKEN/GH_TOKEN with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {}/{} with access to {}/{}.",
                 resp.status(),
+                PRIMARY_GITHUB_TOKEN_ENV,
+                FALLBACK_GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );

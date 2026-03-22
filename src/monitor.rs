@@ -10,7 +10,7 @@ use anyhow::Result;
 use crossbeam_channel::Sender;
 
 use crate::{
-    github::GitHub,
+    github::{FALLBACK_GITHUB_TOKEN_ENV, GitHub, PRIMARY_GITHUB_TOKEN_ENV, github_token},
     reporter::DynReporter,
     tui::{ActionState, RepoStatusRow, UiEvent},
 };
@@ -49,17 +49,15 @@ pub fn run(
         ),
     );
 
-    let token = std::env::var("GITHUB_TOKEN")
-        .or_else(|_| std::env::var("GH_TOKEN"))
-        .unwrap_or_default();
+    let token = github_token();
 
     let has_token = !token.is_empty();
 
     if !has_token {
-        reporter.error(
-            "Missing GITHUB_TOKEN (or GH_TOKEN). Repo status will likely be rate-limited/unauthenticated."
-                .to_string(),
-        );
+        reporter.error(format!(
+            "Missing {} (or {}). Repo status will likely be rate-limited/unauthenticated.",
+            PRIMARY_GITHUB_TOKEN_ENV, FALLBACK_GITHUB_TOKEN_ENV
+        ));
     } else {
         reporter.ok("OK".to_string());
     }

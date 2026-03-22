@@ -1,5 +1,5 @@
 use crate::git::Repo;
-use crate::github::GitHub;
+use crate::github::{FALLBACK_GITHUB_TOKEN_ENV, GitHub, PRIMARY_GITHUB_TOKEN_ENV, github_token};
 use crate::reporter::DynReporter;
 use anyhow::{Context, Result, bail};
 use semver::Version;
@@ -224,13 +224,13 @@ pub fn run(args: ReleaseIsoArgs, reporter: DynReporter) -> Result<()> {
         }
     }
 
-    let token = std::env::var("GITHUB_TOKEN")
-        .or_else(|_| std::env::var("GH_TOKEN"))
-        .unwrap_or_default();
+    let token = github_token();
 
     if !args.dry_run && token.is_empty() {
         bail!(
-            "missing GITHUB_TOKEN (or GH_TOKEN). This is required to poll release assets after tagging."
+            "missing {} (or {}). This is required to poll release assets after tagging.",
+            PRIMARY_GITHUB_TOKEN_ENV,
+            FALLBACK_GITHUB_TOKEN_ENV
         );
     }
 
