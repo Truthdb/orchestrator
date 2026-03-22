@@ -87,3 +87,24 @@ Notes:
 	- if a repo already has the tag on `origin`, orchestrator skips creating/pushing the tag for that repo
 	- it still polls GitHub Releases for required assets and continues to the next repo
 	- for repos not yet tagged on `origin`, strict preflight still applies
+
+### `monitor`
+
+Shows a live TUI dashboard for the TruthDB organization.
+
+Current behavior:
+
+- Reads the latest `ci.yml` workflow run status for each repo
+- Shows the latest release tag for each repo
+- Shows how far the default branch is ahead of the latest release tag
+
+Notes:
+
+- `monitor` requires a TUI-capable terminal; `--no-tui` is not supported for this command
+- For authenticated status, set `GITHUB_TRUTHDB_TOKEN`, `GH_TOKEN`, or `GITHUB_TOKEN`
+- Fine-grained tokens need **Actions: Read-only** in addition to metadata/contents access
+
+Example:
+
+- `./orchestrator monitor`
+- `GITHUB_TRUTHDB_TOKEN=... ./orchestrator monitor --poll-interval-secs 30`
