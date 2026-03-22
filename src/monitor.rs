@@ -36,6 +36,8 @@ const REPOS: [&str; 9] = [
     "website",
 ];
 
+const CI_WORKFLOW_FILE: &str = "ci.yml";
+
 pub fn run(
     args: MonitorArgs,
     tx: Sender<UiEvent>,
@@ -143,7 +145,7 @@ fn refresh_rows_incremental(
             }
         };
 
-        let action = match gh.get_latest_workflow_run(repo) {
+        let action = match gh.get_latest_workflow_run(repo, CI_WORKFLOW_FILE) {
             Ok(Some(run)) => {
                 if run.status == "completed" {
                     match run.conclusion.as_deref() {
@@ -159,7 +161,7 @@ fn refresh_rows_incremental(
             }
             Ok(None) => ActionState::Unknown,
             Err(err) => {
-                repo_errors.push(format!("workflow runs: {err:#}"));
+                repo_errors.push(format!("CI workflow runs: {err:#}"));
                 ActionState::Unknown
             }
         };
