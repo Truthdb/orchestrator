@@ -13,10 +13,16 @@ Example:
 - `./scripts/docker_repl.sh`
 - `./scripts/docker_repl.sh --ephemeral`
 - `./scripts/docker_repl.sh --reset-data`
+- `./scripts/docker_repl.sh --unconfined-seccomp`
+- `./scripts/docker_repl.sh --confined-seccomp`
 
 Notes:
 
-- The script builds and runs the Docker image as `linux/amd64` by default.
+- The script builds and runs the Docker image using the host Linux architecture by default:
+  - `linux/amd64` on x86_64 hosts
+  - `linux/arm64` on arm64 hosts
+- On macOS, the script automatically uses `--security-opt seccomp=unconfined` for Docker Desktop `io_uring` support.
+- Use `--confined-seccomp` to opt out of that behavior.
 - It expects a sibling checkout at `../truthdb` unless `TRUTHDB_DIR` is set.
 
 ### `release-iso`
