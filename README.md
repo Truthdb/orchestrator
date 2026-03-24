@@ -4,6 +4,21 @@ Command-line tooling to administer the TruthDB organization.
 
 ## Commands
 
+### `scripts/docker_repl.sh`
+
+Starts a Docker-based TruthDB REPL using the sibling `truthdb` repo.
+
+Example:
+
+- `./scripts/docker_repl.sh`
+- `./scripts/docker_repl.sh --ephemeral`
+- `./scripts/docker_repl.sh --reset-data`
+
+Notes:
+
+- The script builds and runs the Docker image as `linux/amd64` by default.
+- It expects a sibling checkout at `../truthdb` unless `TRUTHDB_DIR` is set.
+
 ### `release-iso`
 
 Creates and pushes the tags needed to build a matching installer ISO release, then waits until the expected release assets exist (and have stabilized) before proceeding to the next repo.
