@@ -4,6 +4,30 @@ Command-line tooling to administer the TruthDB organization.
 
 ## Commands
 
+### `workspace-update`
+
+Bootstraps and refreshes a TruthDB workspace.
+
+Example:
+
+- `cargo run -- workspace-update`
+- `cargo run -- workspace-update --workspace-root /path/to/workspace`
+- `./.bin/orchestrator workspace-update`
+
+Behavior:
+
+- clones any missing repos listed in `orchestrator/workspace/repos.toml`
+- syncs workspace files from `orchestrator/workspace/` into the workspace root
+- installs or refreshes a workspace-local launcher at `.bin/orchestrator`
+- syncs a root-level `oc.sh` helper that delegates to `.bin/orchestrator`
+
+Notes:
+
+- missing repos are validated against GitHub before clone
+- existing repos are left alone
+- the command does not pull, switch branches, or overwrite repo work
+- the launcher lives under `.bin/` because a root-level `orchestrator` file would conflict with the `orchestrator/` repo directory
+
 ### `scripts/docker_repl.sh`
 
 Starts a Docker-based TruthDB REPL using the sibling `truthdb` repo.
