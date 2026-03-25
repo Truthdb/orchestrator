@@ -4,6 +4,30 @@ Command-line tooling to administer the TruthDB organization.
 
 ## Commands
 
+### `workspace-update`
+
+Bootstraps and refreshes a TruthDB workspace.
+
+Example:
+
+- `cargo run -- workspace-update`
+- `cargo run -- workspace-update --workspace-root /path/to/workspace`
+- `./.bin/orchestrator workspace-update`
+
+Behavior:
+
+- clones any missing repos listed in `orchestrator/workspace/repos.toml`
+- syncs workspace files from `orchestrator/workspace/` into the workspace root
+- installs or refreshes a workspace-local launcher at `.bin/orchestrator`
+- syncs a root-level `oc.sh` helper that delegates to `.bin/orchestrator`
+
+Notes:
+
+- missing repos are validated against GitHub before clone
+- existing repos are left alone
+- the command does not pull, switch branches, or overwrite repo work
+- the launcher lives under `.bin/` because a root-level `orchestrator` file would conflict with the `orchestrator/` repo directory
+
 ### `scripts/docker_repl.sh`
 
 Starts a Docker-based TruthDB REPL using the sibling `truthdb` repo.
@@ -34,10 +58,10 @@ It tags the **local** clones and pushes tags to `origin`, so it behaves like doi
 Requirements:
 
 - Local clones present under one directory:
-	- `truthdb/`
-	- `installer/`
-	- `installer-kernel/`
-	- `installer-iso/`
+  - `truthdb/`
+  - `installer/`
+  - `installer-kernel/`
+  - `installer-iso/`
 - Git auth configured for pushing tags (SSH keys or HTTPS credentials).
 - `GITHUB_TRUTHDB_TOKEN` (or `GH_TOKEN`, or `GITHUB_TOKEN`) set for polling GitHub Releases.
 
@@ -51,12 +75,12 @@ Fine-grained tokens are scoped to a **resource owner** (your user *or* an organi
 
 1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**.
 2. Create a new token:
-	- **Resource owner**: select `Truthdb` (or the org that owns the repos)
-	- **Repository access**: select the needed repos (`installer-kernel`, `installer`, `installer-iso`, `truthdb`, `orchestrator`, `website`, `docs`, `.github`) *or* choose “All repositories” if you prefer
-	- **Permissions (minimum)**:
-		- **Metadata**: Read-only
-		- **Contents**: Read-only (covers Releases/Assets API access)
-		- **Actions**: Read-only (needed by `monitor` to read workflow run status)
+   - **Resource owner**: select `Truthdb` (or the org that owns the repos)
+   - **Repository access**: select the needed repos (`installer-kernel`, `installer`, `installer-iso`, `truthdb`, `orchestrator`, `website`, `docs`, `.github`) *or* choose “All repositories” if you prefer
+   - **Permissions (minimum)**:
+     - **Metadata**: Read-only
+     - **Contents**: Read-only (covers Releases/Assets API access)
+     - **Actions**: Read-only (needed by `monitor` to read workflow run status)
 3. If your org uses SSO, GitHub may require you to **authorize** the token for that org after creation.
 4. Copy the token value (you won’t see it again).
 
@@ -64,17 +88,17 @@ Option B: Classic PAT
 
 1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**.
 2. For *public repos*, a token with **no scopes** is usually sufficient (it’s still authenticated, so it avoids the very low unauthenticated API rate limit).
-	- If you run into permission errors, add **public_repo**.
+   - If you run into permission errors, add **public_repo**.
 3. Copy the token value.
 
 Set the token in your shell:
 
 - One-shot:
-	- `export GITHUB_TRUTHDB_TOKEN=...`
-	- `./orchestrator release-iso --version v1.2.3`
+  - `export GITHUB_TRUTHDB_TOKEN=...`
+  - `./orchestrator release-iso --version v1.2.3`
 
 - Inline for a single command:
-	- `GITHUB_TRUTHDB_TOKEN=... ./orchestrator release-iso --version v1.2.3`
+  - `GITHUB_TRUTHDB_TOKEN=... ./orchestrator release-iso --version v1.2.3`
 
 Notes:
 
@@ -99,15 +123,15 @@ Resume example (if some tags/releases already exist):
 Notes:
 
 - Preflight safety checks are strict:
-	- each repo must have a clean working tree
-	- each repo must be on a branch (not detached)
-	- each repo's `HEAD` must match `origin/<branch>`
-	- the tag must not already exist locally or on `origin`
+  - each repo must have a clean working tree
+  - each repo must be on a branch (not detached)
+  - each repo's `HEAD` must match `origin/<branch>`
+  - the tag must not already exist locally or on `origin`
 
 - `--resume` changes behavior:
-	- if a repo already has the tag on `origin`, orchestrator skips creating/pushing the tag for that repo
-	- it still polls GitHub Releases for required assets and continues to the next repo
-	- for repos not yet tagged on `origin`, strict preflight still applies
+  - if a repo already has the tag on `origin`, orchestrator skips creating/pushing the tag for that repo
+    - it still polls GitHub Releases for required assets and continues to the next repo
+    - for repos not yet tagged on `origin`, strict preflight still applies
 
 ### `monitor`
 

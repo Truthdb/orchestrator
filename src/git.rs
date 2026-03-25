@@ -37,6 +37,34 @@ fn run_git_status(repo_dir: &Path, args: &[&str]) -> Result<(i32, String, String
     Ok((code, stdout, stderr))
 }
 
+pub fn clone_repo(root_dir: &Path, url: &str, name: &str) -> Result<()> {
+    let output = Command::new("git")
+        .current_dir(root_dir)
+        .args(["clone", url, name])
+        .output()
+        .with_context(|| {
+            format!(
+                "failed to run git clone for {url} in {}",
+                root_dir.display()
+            )
+        })?;
+
+    if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!(
+            "git clone failed for {} into {} (exit={}):\nstdout:\n{}\nstderr:\n{}",
+            url,
+            root_dir.display(),
+            output.status,
+            stdout.trim_end(),
+            stderr.trim_end()
+        );
+    }
+
+    Ok(())
+}
+
 #[derive(Clone, Debug)]
 pub struct Repo {
     pub name: String,

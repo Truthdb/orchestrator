@@ -4,6 +4,7 @@ mod monitor;
 mod release_iso;
 mod reporter;
 mod tui;
+mod workspace_update;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -30,6 +31,17 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Clone missing workspace repos, sync workspace files, and install a local orchestrator launcher.
+    WorkspaceUpdate {
+        /// Workspace root directory containing the sibling repos.
+        #[arg(long)]
+        workspace_root: Option<PathBuf>,
+
+        /// GitHub org/owner used for cloning missing repos.
+        #[arg(long, default_value = "Truthdb")]
+        owner: String,
+    },
+
     /// Tag and release all dependencies needed to produce an installer ISO.
     ///
     /// This tags local repos and pushes tags to origin. It then polls GitHub Releases
@@ -169,6 +181,17 @@ fn main() -> Result<()> {
 
 fn run_command(command: Commands, reporter: DynReporter) -> Result<()> {
     match command {
+        Commands::WorkspaceUpdate {
+            workspace_root,
+            owner,
+        } => workspace_update::run(
+            workspace_update::WorkspaceUpdateArgs {
+                workspace_root,
+                owner,
+            },
+            reporter,
+        ),
+
         Commands::ReleaseIso {
             version,
             repos_root,

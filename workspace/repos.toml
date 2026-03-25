@@ -1,0 +1,10 @@
+repos = [
+  "docs",
+  "installer",
+  "installer-iso",
+  "installer-kernel",
+  "installer-kernel-builder-image",
+  "orchestrator",
+  "truthdb",
+  "website",
+]
