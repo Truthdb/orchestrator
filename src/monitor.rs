@@ -10,10 +10,7 @@ use anyhow::Result;
 use crossbeam_channel::Sender;
 
 use crate::{
-    github::{
-        FALLBACK_GITHUB_TOKEN_ENV, GitHub, LEGACY_GITHUB_TOKEN_ENV, PRIMARY_GITHUB_TOKEN_ENV,
-        github_token,
-    },
+    github::{GITHUB_TOKEN_ENV, GitHub, github_token},
     reporter::DynReporter,
     tui::{ActionState, RepoStatusRow, UiEvent},
 };
@@ -60,8 +57,8 @@ pub fn run(
 
     if !has_token {
         reporter.error(format!(
-            "Missing {}, {}, or {}. Repo status will likely be rate-limited/unauthenticated.",
-            PRIMARY_GITHUB_TOKEN_ENV, FALLBACK_GITHUB_TOKEN_ENV, LEGACY_GITHUB_TOKEN_ENV
+            "Missing {}. Repo status will likely be rate-limited/unauthenticated.",
+            GITHUB_TOKEN_ENV
         ));
     } else {
         reporter.ok("OK".to_string());

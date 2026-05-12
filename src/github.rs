@@ -7,15 +7,30 @@ use std::time::{Duration, Instant};
 
 use crate::reporter::Reporter;
 
-pub const PRIMARY_GITHUB_TOKEN_ENV: &str = "GITHUB_TRUTHDB_TOKEN";
-pub const FALLBACK_GITHUB_TOKEN_ENV: &str = "GH_TOKEN";
-pub const LEGACY_GITHUB_TOKEN_ENV: &str = "GITHUB_TOKEN";
+/// Name of the environment variable that holds the GitHub PAT used by the
+/// orchestrator. Project-scoped on purpose so it doesn't collide with the
+/// generic `GH_TOKEN` / `GITHUB_TOKEN` that other tools may set.
+pub const GITHUB_TOKEN_ENV: &str = "GITHUB_TRUTHDB_TOKEN";
 
 pub fn github_token() -> String {
-    std::env::var(PRIMARY_GITHUB_TOKEN_ENV)
-        .or_else(|_| std::env::var(FALLBACK_GITHUB_TOKEN_ENV))
-        .or_else(|_| std::env::var(LEGACY_GITHUB_TOKEN_ENV))
-        .unwrap_or_default()
+    std::env::var(GITHUB_TOKEN_ENV).unwrap_or_default()
+}
+
+/// Return the GitHub token, or bail with a clear, actionable message if the
+/// env var is unset or empty. Use this from commands that genuinely cannot
+/// proceed without an authenticated client. Commands that can degrade
+/// gracefully (e.g. read-only dashboards over public repos) should call
+/// `github_token()` directly and warn instead.
+pub fn require_github_token() -> Result<String> {
+    let token = github_token();
+    if token.trim().is_empty() {
+        bail!(
+            "{} is not set. Export a GitHub personal access token with org access and re-run, e.g. `export {}=ghp_…`.",
+            GITHUB_TOKEN_ENV,
+            GITHUB_TOKEN_ENV
+        );
+    }
+    Ok(token)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -121,11 +136,9 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set {}, {}, or {} with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {} with access to {}/{}.",
                 resp.status(),
-                PRIMARY_GITHUB_TOKEN_ENV,
-                FALLBACK_GITHUB_TOKEN_ENV,
-                LEGACY_GITHUB_TOKEN_ENV,
+                GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -149,11 +162,9 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set {}, {}, or {} with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {} with access to {}/{}.",
                 resp.status(),
-                PRIMARY_GITHUB_TOKEN_ENV,
-                FALLBACK_GITHUB_TOKEN_ENV,
-                LEGACY_GITHUB_TOKEN_ENV,
+                GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -194,11 +205,9 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set {}, {}, or {} with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {} with access to {}/{}.",
                 resp.status(),
-                PRIMARY_GITHUB_TOKEN_ENV,
-                FALLBACK_GITHUB_TOKEN_ENV,
-                LEGACY_GITHUB_TOKEN_ENV,
+                GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -230,11 +239,9 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set {}, {}, or {} with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {} with access to {}/{}.",
                 resp.status(),
-                PRIMARY_GITHUB_TOKEN_ENV,
-                FALLBACK_GITHUB_TOKEN_ENV,
-                LEGACY_GITHUB_TOKEN_ENV,
+                GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );
@@ -266,11 +273,9 @@ impl GitHub {
 
         if resp.status() == StatusCode::UNAUTHORIZED || resp.status() == StatusCode::FORBIDDEN {
             bail!(
-                "GitHub API auth failed (status {}). Set {}, {}, or {} with access to {}/{}.",
+                "GitHub API auth failed (status {}). Set {} with access to {}/{}.",
                 resp.status(),
-                PRIMARY_GITHUB_TOKEN_ENV,
-                FALLBACK_GITHUB_TOKEN_ENV,
-                LEGACY_GITHUB_TOKEN_ENV,
+                GITHUB_TOKEN_ENV,
                 self.owner,
                 repo
             );

@@ -1,8 +1,5 @@
 use crate::git::Repo;
-use crate::github::{
-    FALLBACK_GITHUB_TOKEN_ENV, GitHub, LEGACY_GITHUB_TOKEN_ENV, PRIMARY_GITHUB_TOKEN_ENV,
-    github_token,
-};
+use crate::github::{GitHub, require_github_token};
 use crate::reporter::DynReporter;
 use anyhow::{Context, Result, bail};
 use semver::Version;
@@ -194,20 +191,14 @@ pub fn run(args: ReleaseIsoArgs, reporter: DynReporter) -> Result<()> {
         }
     }
 
-    let token = github_token();
-
-    if !args.dry_run && token.is_empty() {
-        bail!(
-            "missing {}, {}, or {}. This is required to poll release assets after tagging.",
-            PRIMARY_GITHUB_TOKEN_ENV,
-            FALLBACK_GITHUB_TOKEN_ENV,
-            LEGACY_GITHUB_TOKEN_ENV
-        );
-    }
-
-    let gh = if args.dry_run || token.is_empty() {
+    // Dry-run doesn't talk to GitHub, so an empty token is fine there. The
+    // real run polls release assets after tagging — bail upfront if the
+    // token isn't set so the user gets a clear message before we've already
+    // tagged anything.
+    let gh = if args.dry_run {
         None
     } else {
+        let token = require_github_token()?;
         Some(GitHub::new(args.owner.clone(), token)?)
     };
 

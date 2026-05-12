@@ -75,6 +75,11 @@ struct AppState {
     step_title: String,
     step_body: String,
     step_started_at: Instant,
+    /// Frozen elapsed time for the current step once the command finishes
+    /// (success or error). When set, `render_step` stops advancing the timer
+    /// and stops animating the spinner so the user can tell at a glance that
+    /// the operation is no longer running.
+    step_frozen_elapsed: Option<Duration>,
     ok_msg: String,
     error_msg: Option<String>,
     repos: Vec<RepoStatusRow>,
@@ -89,6 +94,7 @@ impl AppState {
             step_title: "Initializing".to_string(),
             step_body: "Starting orchestrator…".to_string(),
             step_started_at: Instant::now(),
+            step_frozen_elapsed: None,
             ok_msg: "OK".to_string(),
             error_msg: None,
             repos: Vec::new(),
@@ -168,6 +174,7 @@ fn handle_ui_event(state: &mut AppState, ev: UiEvent) {
             state.step_title = title;
             state.step_body = body;
             state.step_started_at = Instant::now();
+            state.step_frozen_elapsed = None;
         }
         UiEvent::UpdateBody { body } => {
             state.step_body = body;
@@ -182,12 +189,21 @@ fn handle_ui_event(state: &mut AppState, ev: UiEvent) {
         }
         UiEvent::SetError { msg } => {
             state.error_msg = Some(msg);
+            // Freeze the step timer so the user can see at a glance that the
+            // command stopped running. Without this the spinner keeps animating
+            // and the elapsed clock keeps ticking after the failure.
+            state.step_frozen_elapsed = Some(state.step_started_at.elapsed());
         }
         UiEvent::SetRepos { rows } => {
             state.repos = rows;
         }
         UiEvent::Finished { ok } => {
             state.finished = Some(ok);
+            // Snapshot the elapsed time at completion. `render_step` reads this
+            // to display a static glyph and frozen timer once we're done.
+            if state.step_frozen_elapsed.is_none() {
+                state.step_frozen_elapsed = Some(state.step_started_at.elapsed());
+            }
             if ok {
                 state.error_msg = None;
                 state.ok_msg = "DONE — press q to exit".to_string();
@@ -370,22 +386,40 @@ fn spinner_frame() -> char {
 }
 
 fn render_step(f: &mut ratatui::Frame, area: Rect, state: &AppState) {
-    let elapsed = state.step_started_at.elapsed();
-    let spinner = spinner_frame();
-    let title = format!(
-        "Current Step  {spinner}  {:02}:{:02}",
-        elapsed.as_secs() / 60,
-        elapsed.as_secs() % 60
-    );
+    // Use the frozen elapsed time when the command has finished, so the timer
+    // and spinner stop after completion instead of looking like the program
+    // is still working. While running, fall back to the live elapsed time.
+    let elapsed = state
+        .step_frozen_elapsed
+        .unwrap_or_else(|| state.step_started_at.elapsed());
+    let indicator: String = if state.error_msg.is_some() {
+        "✗".to_string()
+    } else if matches!(state.finished, Some(true)) {
+        "✓".to_string()
+    } else {
+        spinner_frame().to_string()
+    };
+
+    let title = if state.step_title.is_empty() {
+        format!(
+            "Current Step  {indicator}  {:02}:{:02}",
+            elapsed.as_secs() / 60,
+            elapsed.as_secs() % 60
+        )
+    } else {
+        format!(
+            "Current Step: {}  {indicator}  {:02}:{:02}",
+            state.step_title,
+            elapsed.as_secs() / 60,
+            elapsed.as_secs() % 60
+        )
+    };
 
     let block = base_block(title);
 
+    // The step title is already in the block header above — don't repeat it
+    // in the body. The body is reserved for the latest progress text.
     let mut lines = Vec::new();
-    lines.push(Line::styled(
-        state.step_title.clone(),
-        Style::default().add_modifier(Modifier::BOLD),
-    ));
-    lines.push(Line::raw(""));
     for l in state.step_body.lines() {
         lines.push(Line::raw(l.to_string()));
     }
