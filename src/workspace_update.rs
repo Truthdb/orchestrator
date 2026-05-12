@@ -29,11 +29,6 @@ struct WorkspaceManifest {
 }
 
 pub fn run(args: WorkspaceUpdateArgs, reporter: DynReporter) -> Result<()> {
-    reporter.step(
-        "Workspace Update".to_string(),
-        "Bootstrapping repos, syncing workspace files, and installing the local orchestrator launcher.".to_string(),
-    );
-
     let workspace_root = resolve_workspace_root(args.workspace_root)?;
     fs::create_dir_all(&workspace_root).with_context(|| {
         format!(
@@ -41,13 +36,23 @@ pub fn run(args: WorkspaceUpdateArgs, reporter: DynReporter) -> Result<()> {
             workspace_root.display()
         )
     })?;
-    reporter.update(format!("workspace_root={}", workspace_root.display()));
 
     let manifest = load_manifest()?;
-    let github = GitHub::new(args.owner.clone(), crate::github::github_token())?;
+    // Fail fast with a clear message if the token isn't set. Without this,
+    // a missing/typoed token only surfaces if a repo actually needs cloning,
+    // and even then via a generic 401 round-trip — easy to miss.
+    let github = GitHub::new(args.owner.clone(), crate::github::require_github_token()?)?;
 
+    reporter.step(
+        "Cloning repos".to_string(),
+        format!("workspace_root={}", workspace_root.display()),
+    );
     let cloned = clone_missing_repos(&workspace_root, &args.owner, &manifest, &github, &reporter)?;
+
+    reporter.step("Syncing workspace files".to_string(), String::new());
     let synced = sync_workspace_files(&workspace_root, &reporter)?;
+
+    reporter.step("Installing launcher".to_string(), String::new());
     let launcher_updated = install_launcher(&workspace_root, &reporter)?;
 
     reporter.ok(format!(
@@ -156,7 +161,14 @@ fn clone_missing_repos(
             continue;
         }
 
-        reporter.update(format!("validating GitHub repo {}/{}", owner, repo));
+        // Emit a fresh step per repo that actually needs cloning so the TUI
+        // timer resets and the title reflects which repo is in flight. We
+        // intentionally skip the "already present" case so the timer doesn't
+        // flicker for trivial work.
+        reporter.step(
+            format!("Cloning {repo}"),
+            format!("validating GitHub repo {owner}/{repo}"),
+        );
         let _ = github
             .get_default_branch(repo)
             .with_context(|| format!("failed to validate GitHub repo {owner}/{repo}"))?;
@@ -173,7 +185,20 @@ fn clone_missing_repos(
 fn sync_workspace_files(workspace_root: &Path, reporter: &DynReporter) -> Result<usize> {
     let mut updated = 0usize;
     let source_root = workspace_root.join("orchestrator").join("workspace");
-    sync_embedded_dir(&WORKSPACE_DIR, workspace_root, &source_root, &mut updated)?;
+
+    // Prefer the live on-disk source over the snapshot embedded into this
+    // binary at compile time. Without this, edits to `orchestrator/workspace/`
+    // are invisible until the orchestrator is rebuilt AND the rebuilt binary
+    // is the one being run via `.bin/.orchestrator-bin`. The embedded copy
+    // is kept as a fallback for first-time bootstrap (when `orchestrator/`
+    // hasn't been cloned yet).
+    if source_root.is_dir() {
+        reporter.update(format!("syncing from {}", source_root.display()));
+        sync_disk_dir(&source_root, &source_root, workspace_root, &mut updated)?;
+    } else {
+        reporter.update("syncing from embedded snapshot (no on-disk workspace/ found)".to_string());
+        sync_embedded_dir(&WORKSPACE_DIR, workspace_root, &source_root, &mut updated)?;
+    }
 
     if updated == 0 {
         reporter.update("workspace files already current".to_string());
@@ -200,34 +225,9 @@ fn sync_embedded_dir(
 
                 let dest = workspace_root.join(file.path());
                 let source = source_root.join(file.path());
-                if let Some(parent) = dest.parent() {
-                    fs::create_dir_all(parent).with_context(|| {
-                        format!("failed to create directory {}", parent.display())
-                    })?;
-                }
-
-                let contents = file.contents();
-                let mut changed = false;
-                let needs_write = match fs::read(&dest) {
-                    Ok(existing) => existing != contents,
-                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => true,
-                    Err(err) => {
-                        return Err(err)
-                            .with_context(|| format!("failed to read {}", dest.display()));
-                    }
-                };
-
-                if needs_write {
-                    fs::write(&dest, contents)
-                        .with_context(|| format!("failed to write {}", dest.display()))?;
-                    changed = true;
-                }
-
-                if sync_file_permissions(&source, &dest)? {
-                    changed = true;
-                }
-
-                if changed {
+                let wrote = write_if_changed(&dest, file.contents())?;
+                let perms_changed = sync_file_permissions(&source, &dest)?;
+                if wrote || perms_changed {
                     *updated += 1;
                 }
             }
@@ -235,6 +235,89 @@ fn sync_embedded_dir(
     }
 
     Ok(())
+}
+
+/// Recursively walk `dir` and mirror it into `workspace_root`, using
+/// `source_root` to compute the relative path under the destination. Skips
+/// `repos.toml` (same as the embedded path) and anything under `.git/`.
+fn sync_disk_dir(
+    dir: &Path,
+    source_root: &Path,
+    workspace_root: &Path,
+    updated: &mut usize,
+) -> Result<()> {
+    let entries =
+        fs::read_dir(dir).with_context(|| format!("failed to read directory {}", dir.display()))?;
+
+    for entry in entries {
+        let entry = entry
+            .with_context(|| format!("failed to read directory entry in {}", dir.display()))?;
+        let path = entry.path();
+        let file_name = entry.file_name();
+
+        // Defensive: never sync version-control metadata.
+        if file_name == ".git" {
+            continue;
+        }
+
+        let file_type = entry
+            .file_type()
+            .with_context(|| format!("failed to stat {}", path.display()))?;
+
+        if file_type.is_dir() {
+            sync_disk_dir(&path, source_root, workspace_root, updated)?;
+            continue;
+        }
+
+        if !file_type.is_file() {
+            // Skip symlinks and anything exotic — the embedded path doesn't
+            // support them either.
+            continue;
+        }
+
+        let rel = path
+            .strip_prefix(source_root)
+            .with_context(|| format!("path {} escaped source root", path.display()))?;
+        if rel == Path::new(MANIFEST_PATH) {
+            continue;
+        }
+
+        let dest = workspace_root.join(rel);
+        let contents =
+            fs::read(&path).with_context(|| format!("failed to read source {}", path.display()))?;
+
+        let wrote = write_if_changed(&dest, &contents)?;
+        let perms_changed = sync_file_permissions(&path, &dest)?;
+        if wrote || perms_changed {
+            *updated += 1;
+        }
+    }
+
+    Ok(())
+}
+
+/// Write `contents` to `dest`, creating parent directories as needed, only if
+/// the destination is missing or its current bytes differ. Returns true when
+/// a write actually happened.
+fn write_if_changed(dest: &Path, contents: &[u8]) -> Result<bool> {
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create directory {}", parent.display()))?;
+    }
+
+    let needs_write = match fs::read(dest) {
+        Ok(existing) => existing != contents,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => true,
+        Err(err) => {
+            return Err(err).with_context(|| format!("failed to read {}", dest.display()));
+        }
+    };
+
+    if needs_write {
+        fs::write(dest, contents).with_context(|| format!("failed to write {}", dest.display()))?;
+    }
+
+    Ok(needs_write)
 }
 
 fn install_launcher(workspace_root: &Path, reporter: &DynReporter) -> Result<bool> {
