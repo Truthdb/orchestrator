@@ -201,15 +201,6 @@ WSL2 generally works like native Linux with caveats:
 
 Each repo has its own `.github/workflows/ci.yml`. The `truthdb/` CI runs in `rust:1.92-bookworm` containers with `--security-opt seccomp=unconfined` for tests.
 
-## Specs and design docs
-
-- Storage design: `docs/development/specs/STORAGE.md`
-- WAL requirements: `docs/development/specs/WAL.md`
-- Architecture overview: `docs/development/architecture/OVERVIEW.md`
-- Start here (org overview): `docs/development/specs/TRUTHDB-START-HERE.md`
-- Feature plans: `docs/features/`
-- Capability catalogue: `docs/features/truthdb_capability_catalogue.md`
-
 ## Port and protocol
 
 TruthDB listens on port **9623** (TCP). Custom binary protocol using bincode serialization with 8-byte frame headers. Protocol version 1.
