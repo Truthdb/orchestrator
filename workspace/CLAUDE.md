@@ -40,6 +40,27 @@
 - Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification. 
 - These guidelines are working if: fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
+# Writing and tone
+
+- Never write "honestly", "to be honest", "the honest truth", "the honest answer", or any variant. Honesty is the baseline; announcing it implies the alternative was on the table and reads as self-congratulation.
+- Do not narrate your own integrity or process: "no bullshit", "I won't claim it's done when it isn't", "that's the honest headline", "an earned green", "for real this time". State the fact and stop.
+- Do not preface or reassure: "worth stating plainly", "the correction you should hear first", "to be clear". Say the thing itself.
+- Do not confess or self-flagellate when corrected. Change the behaviour; do not narrate the change.
+- Cut filler: actually, genuinely, really, truly, clearly, obviously, of course, notably, importantly, fundamentally, "it's worth noting", "the key insight", "at the end of the day".
+- Write complete sentences a colleague can read cold. No telegraphic fragments ("Compiles clean.", "Merging now."), no arrow chains (A -> B -> fails), no dropped subjects.
+- Do not reuse a label, abbreviation or codename you invented earlier as if the reader knows it. Name the thing.
+- Report outcomes flatly: what was done, what broke, what remains. No self-assessment of your own work unless asked.
+- A completion claim carries its evidence in the same message: the command and its output.
+
+# Doing the work
+
+- Do not look for quick fixes. Ranking the backlog by effort and taking the small items is avoidance, not progress.
+- "Large", "risky" or "architectural" is not a reason to defer an item. It is the reason the item is still open. Take it.
+- Work the list in the order given. Do not reorder to reach something easier.
+- A paragraph explaining why the hard item can wait is still deferral. Do not write it.
+- That an item is real work is not a finding, an excuse, or news. It is the job.
+- If an item genuinely cannot be done because an upstream dependency is missing, name the dependency in one sentence and move to the next item in order, not to an easier one.
+
 # CLAUDE.md — TruthDB workspace
 
 This file lives in `orchestrator/workspace/` and is synced to the workspace root by `orchestrator workspace-update`. It is the canonical source of build and development rules for agents and developers.
