@@ -63,9 +63,19 @@ Requirements:
   - `installer-kernel/`
   - `installer-iso/`
 - Git auth configured for pushing tags (SSH keys or HTTPS credentials).
-- `GITHUB_TRUTHDB_TOKEN` (or `GH_TOKEN`, or `GITHUB_TOKEN`) set for polling GitHub Releases.
+- `GITHUB_TRUTHDB_TOKEN` set for polling GitHub Releases (the `.envrc` does this, see below).
 
-Token setup (PAT):
+Token setup:
+
+The repo ships an `.envrc` for [direnv](https://direnv.net) that sets `GITHUB_TRUTHDB_TOKEN` from your GitHub CLI login. One-time setup:
+
+```sh
+# install direnv (apt install direnv / brew install direnv) and add its hook to your shell
+gh auth login
+direnv allow      # in this directory
+```
+
+Without direnv, export `GITHUB_TRUTHDB_TOKEN=$(gh auth token)` yourself.
 
 Orchestrator uses the token only to *read* GitHub Releases/Assets while it waits. Tag pushing still uses your normal `git` credentials.
 
