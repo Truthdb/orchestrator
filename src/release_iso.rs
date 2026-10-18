@@ -73,7 +73,15 @@ fn looks_like_repos_root(dir: &Path) -> bool {
         .all(|name| dir.join(name).is_dir())
 }
 
+/// The Debian package version truthdb's deb.yml builds: a prerelease's `-`
+/// becomes `~` so `0.1.2~rc.1` sorts before `0.1.2`.
+fn deb_version(version_without_v: &str) -> String {
+    version_without_v.replace('-', "~")
+}
+
 fn expected_assets(repo: &str, version_without_v: &str) -> Vec<String> {
+    // GitHub replaces `~` with `.` in release asset names.
+    let asset_deb_version = deb_version(version_without_v).replace('~', ".");
     match repo {
         "installer-kernel" => vec!["BOOTX64.EFI".to_string(), "BOOTX64.EFI.sha256".to_string()],
         "installer" => vec![
@@ -89,6 +97,8 @@ fn expected_assets(repo: &str, version_without_v: &str) -> Vec<String> {
         "truthdb" => vec![
             format!("truthdb-v{}-x86_64-linux-gnu.tar.gz", version_without_v),
             format!("truthdb-v{}-x86_64-linux-gnu.sha256", version_without_v),
+            format!("truthdb-server_{asset_deb_version}-1_amd64.deb"),
+            format!("truthdb-cli_{asset_deb_version}-1_amd64.deb"),
         ],
         "installer-iso" => vec![
             format!("truthdb-installer-v{}.iso", version_without_v),
@@ -261,10 +271,128 @@ pub fn run(args: ReleaseIsoArgs, reporter: DynReporter) -> Result<()> {
         }
     }
 
+    let packages_url = apt_packages_url(&args.owner);
+    let apt_version = format!("{}-1", deb_version(&version_without_v));
+    reporter.step(
+        "Waiting for apt".to_string(),
+        format!("truthdb-server and truthdb-cli {apt_version} in {packages_url}"),
+    );
+    if args.dry_run {
+        reporter.update("(dry-run) would wait for the apt repository".to_string());
+    } else {
+        wait_for_apt(
+            &packages_url,
+            &apt_version,
+            args.poll_interval,
+            args.timeout,
+            reporter.as_ref(),
+        )?;
+    }
+
     reporter.step(
         "Complete".to_string(),
-        format!("All done. installer-iso release should now produce the ISO for {tag}."),
+        format!("All done: {tag} is released, including the ISO and the apt packages."),
     );
     reporter.ok("OK".to_string());
     Ok(())
+}
+
+/// The apt repository's package index for one suite. publish.yml writes every
+/// suite in the same commit, so one suite shows whether a version is live.
+fn apt_packages_url(owner: &str) -> String {
+    format!(
+        "https://{}.github.io/apt/dists/bookworm/main/binary-amd64/Packages",
+        owner.to_lowercase()
+    )
+}
+
+/// Whether a Debian `Packages` index lists `package` at `version`.
+fn packages_index_has(index: &str, package: &str, version: &str) -> bool {
+    index.split("\n\n").any(|stanza| {
+        let mut name = None;
+        let mut ver = None;
+        for line in stanza.lines() {
+            if let Some(v) = line.strip_prefix("Package: ") {
+                name = Some(v.trim());
+            } else if let Some(v) = line.strip_prefix("Version: ") {
+                ver = Some(v.trim());
+            }
+        }
+        name == Some(package) && ver == Some(version)
+    })
+}
+
+fn wait_for_apt(
+    packages_url: &str,
+    version: &str,
+    poll_interval: Duration,
+    timeout: Duration,
+    reporter: &dyn crate::reporter::Reporter,
+) -> Result<()> {
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("truthdb-orchestrator")
+        .build()
+        .context("failed to build HTTP client")?;
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        let index = client
+            .get(packages_url)
+            .send()
+            .and_then(|resp| resp.error_for_status())
+            .and_then(|resp| resp.text())
+            .unwrap_or_default();
+        if ["truthdb-server", "truthdb-cli"]
+            .iter()
+            .all(|package| packages_index_has(&index, package, version))
+        {
+            reporter.update(format!("apt repository serves {version}"));
+            return Ok(());
+        }
+        if std::time::Instant::now() > deadline {
+            bail!(
+                "Timed out waiting for {version} in {packages_url}. Check the 'Publish apt repo' runs in Truthdb/apt and truthdb's deb.yml dispatch step."
+            );
+        }
+        reporter.update(format!(
+            "apt repository does not serve {version} yet; waiting…"
+        ));
+        std::thread::sleep(poll_interval);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truthdb_assets_include_the_debs() {
+        let assets = expected_assets("truthdb", "0.1.42");
+        assert!(assets.contains(&"truthdb-server_0.1.42-1_amd64.deb".to_string()));
+        assert!(assets.contains(&"truthdb-cli_0.1.42-1_amd64.deb".to_string()));
+    }
+
+    #[test]
+    fn prerelease_deb_assets_use_githubs_renamed_tilde() {
+        // deb.yml builds 0.1.40~rc1; GitHub stores the asset as 0.1.40.rc1.
+        let assets = expected_assets("truthdb", "0.1.42-rc.1");
+        assert!(assets.contains(&"truthdb-cli_0.1.42.rc.1-1_amd64.deb".to_string()));
+        assert_eq!(deb_version("0.1.42-rc.1"), "0.1.42~rc.1");
+    }
+
+    #[test]
+    fn packages_index_matches_package_and_version_in_one_stanza() {
+        let index = "Package: truthdb-cli\nVersion: 0.1.41-1\nArchitecture: amd64\n\n\
+                     Package: truthdb-server\nVersion: 0.1.42-1\nArchitecture: amd64\n";
+        assert!(packages_index_has(index, "truthdb-server", "0.1.42-1"));
+        assert!(!packages_index_has(index, "truthdb-cli", "0.1.42-1"));
+        assert!(!packages_index_has("", "truthdb-cli", "0.1.42-1"));
+    }
+
+    #[test]
+    fn apt_url_uses_the_lowercased_owner() {
+        assert_eq!(
+            apt_packages_url("Truthdb"),
+            "https://truthdb.github.io/apt/dists/bookworm/main/binary-amd64/Packages"
+        );
+    }
 }

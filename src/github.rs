@@ -58,6 +58,22 @@ pub struct WorkflowRunsResponse {
 pub struct WorkflowRun {
     pub status: String,
     pub conclusion: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub html_url: String,
+}
+
+/// The first finished run that did not succeed, if any. A run that is still
+/// queued or in progress is not a failure yet.
+pub fn first_failed_run(runs: &[WorkflowRun]) -> Option<&WorkflowRun> {
+    runs.iter().find(|run| {
+        run.status == "completed"
+            && matches!(
+                run.conclusion.as_deref(),
+                Some("failure" | "cancelled" | "timed_out" | "startup_failure")
+            )
+    })
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -225,6 +241,32 @@ impl GitHub {
         Ok(data.workflow_runs.into_iter().next())
     }
 
+    /// Workflow runs started by pushing `tag` (their head branch is the tag name).
+    pub fn get_tag_push_runs(&self, repo: &str, tag: &str) -> Result<Vec<WorkflowRun>> {
+        let mut url = Url::parse(&format!(
+            "https://api.github.com/repos/{}/{repo}/actions/runs",
+            self.owner
+        ))
+        .context("failed to build GitHub workflow runs URL")?;
+        url.query_pairs_mut()
+            .append_pair("event", "push")
+            .append_pair("branch", tag)
+            .append_pair("per_page", "20");
+
+        let resp = self.send_get(url.as_str())?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().unwrap_or_default();
+            return Err(anyhow!("GitHub API error ({}): {}", status, body));
+        }
+
+        let data = resp
+            .json::<WorkflowRunsResponse>()
+            .context("failed to parse GitHub workflow runs JSON")?;
+        Ok(data.workflow_runs)
+    }
+
     pub fn get_latest_release_tag(&self, repo: &str) -> Result<Option<String>> {
         let url = format!(
             "https://api.github.com/repos/{}/{repo}/releases/latest",
@@ -316,6 +358,20 @@ impl GitHub {
                 );
             }
 
+            // A failed release workflow will never produce its assets; say so now
+            // instead of at the timeout.
+            let runs = self.get_tag_push_runs(repo, tag)?;
+            if let Some(run) = first_failed_run(&runs) {
+                bail!(
+                    "{}/{} workflow '{}' for {tag} finished with '{}': {}",
+                    self.owner,
+                    repo,
+                    run.name.as_deref().unwrap_or("?"),
+                    run.conclusion.as_deref().unwrap_or("?"),
+                    run.html_url
+                );
+            }
+
             let Some(release) = self.get_release_by_tag(repo, tag)? else {
                 reporter.update(format!("[{repo}] release {tag} not found yet; waiting…"));
                 std::thread::sleep(poll_interval);
@@ -360,6 +416,42 @@ impl GitHub {
 
             reporter.update(format!("[{repo}] assets present; verifying stability…"));
             std::thread::sleep(poll_interval);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run(status: &str, conclusion: Option<&str>) -> WorkflowRun {
+        WorkflowRun {
+            status: status.to_string(),
+            conclusion: conclusion.map(str::to_string),
+            name: Some("release".to_string()),
+            html_url: String::new(),
+        }
+    }
+
+    #[test]
+    fn running_and_successful_runs_are_not_failures() {
+        let runs = [run("in_progress", None), run("completed", Some("success"))];
+        assert!(first_failed_run(&runs).is_none());
+        let skipped = [run("completed", Some("skipped"))];
+        assert!(first_failed_run(&skipped).is_none());
+    }
+
+    #[test]
+    fn failed_or_cancelled_runs_are_failures() {
+        for conclusion in ["failure", "cancelled", "timed_out", "startup_failure"] {
+            let runs = [
+                run("completed", Some("success")),
+                run("completed", Some(conclusion)),
+            ];
+            assert_eq!(
+                first_failed_run(&runs).and_then(|r| r.conclusion.as_deref()),
+                Some(conclusion)
+            );
         }
     }
 }
