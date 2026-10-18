@@ -51,7 +51,7 @@ Notes:
 
 ### `release-iso`
 
-Creates and pushes the tags needed to build a matching installer ISO release, then waits until the expected release assets exist (and have stabilized) before proceeding to the next repo.
+Creates and pushes the tags needed to build a matching installer ISO release, then waits until the expected release assets exist (and have stabilized) before proceeding to the next repo. For `truthdb` that includes the `truthdb-server` and `truthdb-cli` .deb packages. If a release workflow for the tag fails, it stops at once and prints the run's URL. At the end it waits until the apt repository (`https://truthdb.github.io/apt`) serves the new packages.
 
 It tags the **local** clones and pushes tags to `origin`, so it behaves like doing the release manually in each repo.
 
@@ -77,7 +77,7 @@ direnv allow      # in this directory
 
 Without direnv, export `GITHUB_TRUTHDB_TOKEN=$(gh auth token)` yourself.
 
-Orchestrator uses the token only to *read* GitHub Releases/Assets while it waits. Tag pushing still uses your normal `git` credentials.
+Orchestrator uses the token only to *read* GitHub Releases/Assets and the tag's workflow runs while it waits. Tag pushing still uses your normal `git` credentials.
 
 Option A: Fine-grained PAT (recommended)
 
