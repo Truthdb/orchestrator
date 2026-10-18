@@ -112,7 +112,7 @@ Set the token in your shell:
 
 Notes:
 
-- Orchestrator also accepts `GH_TOKEN` and `GITHUB_TOKEN` (same value). If multiple are set, it prefers `GITHUB_TRUTHDB_TOKEN`, then `GH_TOKEN`, then `GITHUB_TOKEN`.
+- Orchestrator reads only `GITHUB_TRUTHDB_TOKEN`. The generic `GH_TOKEN` and `GITHUB_TOKEN` are deliberately ignored so they cannot collide with tokens other tools set.
 - Prefer tokens with an expiration date; rotate if leaked.
 - If `monitor` shows only unknown/blank rows, verify the token value itself is valid. A malformed token can make GitHub return auth failures for every repo.
 
@@ -156,7 +156,7 @@ Current behavior:
 Notes:
 
 - `monitor` requires a TUI-capable terminal; `--no-tui` is not supported for this command
-- For authenticated status, set `GITHUB_TRUTHDB_TOKEN`, `GH_TOKEN`, or `GITHUB_TOKEN`
+- For authenticated status, set `GITHUB_TRUTHDB_TOKEN`
 - Fine-grained tokens need **Actions: Read-only** in addition to metadata/contents access
 
 Example:
